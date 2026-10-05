@@ -1,0 +1,303 @@
+{
+  "_title": "Steel pipe inspection",
+  "_note": "Outer surface of a steel pipe: finds scratches, pits and rust, measures length and area, then decides accept, concession or reject",
+  "id": "steel-pipe",
+  "subject": "Outer surface of a seamless steel pipe, photographed lengthwise",
+  "demo": {
+    "scene": "steel",
+    "variants": [
+      "minor",
+      "reject",
+      "ok"
+    ]
+  },
+  "train": {
+    "model": "steel-defects",
+    "scene": "steel",
+    "features": [
+      "color",
+      "texture",
+      "shape"
+    ],
+    "algo": "svm"
+  },
+  "max_side": 640,
+  "calibration": {
+    "mm_per_px": 0.2
+  },
+  "quality": {
+    "min_sharpness": 5,
+    "brightness": [
+      40,
+      230
+    ]
+  },
+  "model": "multilingual",
+  "pipeline": [
+    {
+      "op": "mask",
+      "name": "pipe",
+      "method": "gray",
+      "above": 22,
+      "close": 9,
+      "fill": true,
+      "keep_largest": 1,
+      "erode": 9
+    },
+    {
+      "op": "mask",
+      "name": "rust",
+      "method": "hsv",
+      "ranges": [
+        {
+          "h": [
+            5,
+            42
+          ],
+          "s": [
+            35,
+            100
+          ],
+          "v": [
+            20,
+            100
+          ]
+        }
+      ],
+      "within": "pipe",
+      "open": 3,
+      "close": 7,
+      "min_area": 40
+    },
+    {
+      "op": "mask",
+      "name": "surface",
+      "method": "anomaly",
+      "pre_blur": 1.0,
+      "background": "median",
+      "ksize": 41,
+      "k": 7,
+      "min_delta": 18,
+      "within": "pipe",
+      "min_area": 12
+    },
+    {
+      "op": "mask",
+      "name": "defects",
+      "method": "combine",
+      "how": "or",
+      "of": [
+        "surface",
+        "rust"
+      ],
+      "close": 5
+    },
+    {
+      "op": "regions",
+      "name": "defects",
+      "from": "defects",
+      "min_area": 12
+    },
+    {
+      "op": "classify",
+      "model": "steel-defects",
+      "on": "regions:defects",
+      "pad": 0.25
+    }
+  ],
+  "draw": [
+    {
+      "mask": "rust",
+      "color": "#f59e0b",
+      "alpha": 0.35,
+      "label": "rust"
+    },
+    {
+      "regions": "defects",
+      "color": "#e11d48",
+      "label": "defects"
+    }
+  ],
+  "measurements": {
+    "defect_count": {
+      "label": "Defect count",
+      "decimals": 0,
+      "range": [
+        0,
+        50
+      ],
+      "compute": {
+        "type": "count",
+        "regions": "defects"
+      }
+    },
+    "scratch_len": {
+      "label": "Longest scratch",
+      "unit": "mm",
+      "decimals": 1,
+      "guard": 1,
+      "range": [
+        0,
+        200
+      ],
+      "compute": {
+        "type": "max",
+        "regions": "defects",
+        "attr": "length",
+        "where": {
+          "elongation": [
+            ">=",
+            4
+          ]
+        }
+      }
+    },
+    "pit_count": {
+      "label": "Pit count",
+      "decimals": 0,
+      "range": [
+        0,
+        30
+      ],
+      "compute": {
+        "type": "count",
+        "regions": "defects",
+        "where": {
+          "elongation": [
+            "<",
+            4
+          ],
+          "area": [
+            "<",
+            30
+          ]
+        }
+      }
+    },
+    "rust_ratio": {
+      "label": "Rust share",
+      "unit": "%",
+      "decimals": 2,
+      "guard": 0.05,
+      "compute": {
+        "type": "area_ratio",
+        "mask": "rust",
+        "within": "pipe"
+      }
+    },
+    "defect_area": {
+      "label": "Total defect area",
+      "unit": "mm²",
+      "decimals": 1,
+      "compute": {
+        "type": "sum",
+        "regions": "defects",
+        "attr": "area"
+      }
+    },
+    "main_defect": {
+      "label": "Main defect type",
+      "compute": {
+        "type": "top_label",
+        "regions": "defects"
+      }
+    }
+  },
+  "rules": {
+    "verdict": {
+      "label": "Inspection result",
+      "cases": [
+        {
+          "value": "Reject",
+          "when": {
+            "any": [
+              {
+                "m": "rust_ratio",
+                "op": ">",
+                "value": 0.5
+              },
+              {
+                "m": "scratch_len",
+                "op": ">",
+                "value": 20
+              },
+              {
+                "m": "pit_count",
+                "op": ">=",
+                "value": 2
+              }
+            ]
+          }
+        },
+        {
+          "value": "Concession",
+          "when": {
+            "m": "defect_count",
+            "op": ">=",
+            "value": 1
+          }
+        },
+        {
+          "value": "Accept"
+        }
+      ]
+    },
+    "pass": {
+      "label": "May be released",
+      "when": {
+        "not": {
+          "any": [
+            {
+              "m": "rust_ratio",
+              "op": ">",
+              "value": 0.5
+            },
+            {
+              "m": "scratch_len",
+              "op": ">",
+              "value": 20
+            },
+            {
+              "m": "pit_count",
+              "op": ">=",
+              "value": 2
+            }
+          ]
+        }
+      }
+    }
+  },
+  "questions": {
+    "verdict": {
+      "type": "choice",
+      "instructions": "What is the inspection result for this pipe section?",
+      "criteria": {
+        "Accept": "no visible defects",
+        "Concession": "minor defects within the allowed range",
+        "Reject": "defects beyond the allowed range"
+      }
+    },
+    "pass": {
+      "type": "noul",
+      "instructions": "Can this pipe section be released to the next process?"
+    },
+    "action": {
+      "type": "choice",
+      "instructions": "Considering the type and severity of the defects, how should it be handled?",
+      "criteria": {
+        "Release": "the surface is sound",
+        "Grind and repair": "only shallow scratches or small pits, can be ground out",
+        "Derust and re-inspect": "mainly rust; remove it and inspect again",
+        "Scrap": "severe or numerous defects, not worth repairing"
+      }
+    }
+  },
+  "bindings": {
+    "verdict": {
+      "rule": "verdict"
+    },
+    "pass": {
+      "rule": "pass"
+    }
+  }
+}

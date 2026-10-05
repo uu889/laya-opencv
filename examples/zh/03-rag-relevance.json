@@ -1,0 +1,20 @@
+{
+  "_title": "RAG 段落相关性",
+  "_note": "检索到的段落能不能回答用户的问题",
+  "model": "multilingual",
+  "state": {
+    "question": "退款申请提交后多久能到账？",
+    "passage": "退款审核通过后，款项将在 7 个工作日内原路退回到您的支付账户。使用信用卡支付的订单，到账时间以发卡银行的处理进度为准。"
+  },
+  "questions": {
+    "relevant": {
+      "type": "noul",
+      "instructions": "passage 是否包含回答 question 所需的信息？"
+    },
+    "relevance": {
+      "type": "score",
+      "instructions": "passage 与 question 的相关程度如何？",
+      "criteria": ["完全无关", "主题相关但没有答案", "直接回答了问题"]
+    }
+  }
+}

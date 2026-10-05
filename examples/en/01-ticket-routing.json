@@ -1,0 +1,27 @@
+{
+  "_title": "Ticket routing",
+  "_note": "One support message: department, urgency and churn risk in a single request",
+  "model": "multilingual",
+  "state": "I was charged twice in March. Refund me today or I'm cancelling my subscription.",
+  "questions": {
+    "department": {
+      "type": "choice",
+      "instructions": "Which department should handle this message?",
+      "criteria": {
+        "billing": "Invoices, payments, refunds",
+        "technical": "Bugs, outages, system errors",
+        "sales": "Quotes, purchase questions, plan upgrades",
+        "other": "Anything else"
+      }
+    },
+    "urgency": {
+      "type": "score",
+      "instructions": "How urgent is this request?",
+      "criteria": ["Not urgent", "Should be handled soon", "Very urgent or has a clear deadline"]
+    },
+    "churn_risk": {
+      "type": "noul",
+      "instructions": "Is the customer threatening to cancel or leave?"
+    }
+  }
+}

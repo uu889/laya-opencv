@@ -1,0 +1,318 @@
+{
+  "_title": "Fruit picking",
+  "_note": "Close-up of one fruit: measures the ripe-colour share, blemish share and diameter, then decides whether to pick it and which grade it is",
+  "id": "fruit-picking",
+  "subject": "Tomato, close-up of a single fruit",
+  "demo": {
+    "scene": "fruit",
+    "variants": [
+      "ripe",
+      "turning",
+      "unripe",
+      "blemished"
+    ]
+  },
+  "train": {
+    "model": "fruit-ripeness",
+    "scene": "fruit",
+    "features": [
+      "color",
+      "shape"
+    ],
+    "algo": "svm"
+  },
+  "max_side": 640,
+  "calibration": {
+    "mm_per_px": 0.3
+  },
+  "quality": {
+    "min_sharpness": 8,
+    "brightness": [
+      30,
+      225
+    ]
+  },
+  "model": "multilingual",
+  "pipeline": [
+    {
+      "op": "mask",
+      "name": "fruit",
+      "method": "hsv",
+      "ranges": [
+        {
+          "h": [
+            335,
+            72
+          ],
+          "s": [
+            38,
+            100
+          ],
+          "v": [
+            32,
+            100
+          ]
+        },
+        {
+          "h": [
+            72,
+            110
+          ],
+          "s": [
+            22,
+            62
+          ],
+          "v": [
+            50,
+            100
+          ]
+        }
+      ],
+      "open": 5,
+      "close": 9,
+      "fill": true,
+      "keep_largest": 1,
+      "min_area": 3000
+    },
+    {
+      "op": "mask",
+      "name": "ripe",
+      "method": "hsv",
+      "ranges": [
+        {
+          "h": [
+            340,
+            18
+          ],
+          "s": [
+            45,
+            100
+          ],
+          "v": [
+            30,
+            100
+          ]
+        }
+      ],
+      "within": "fruit"
+    },
+    {
+      "op": "mask",
+      "name": "blemish",
+      "method": "gray",
+      "channel": "v",
+      "below": 28,
+      "within": "fruit",
+      "open": 3,
+      "min_area": 20
+    },
+    {
+      "op": "regions",
+      "name": "fruits",
+      "from": "fruit",
+      "min_area": 3000
+    },
+    {
+      "op": "classify",
+      "model": "fruit-ripeness",
+      "on": "regions:fruits"
+    }
+  ],
+  "draw": [
+    {
+      "mask": "ripe",
+      "color": "#e11d48",
+      "alpha": 0.25,
+      "outline": false,
+      "label": "ripe colour"
+    },
+    {
+      "mask": "blemish",
+      "color": "#3b82f6",
+      "alpha": 0.6,
+      "label": "blemish"
+    },
+    {
+      "regions": "fruits",
+      "color": "#14b8a6",
+      "label": "fruit"
+    }
+  ],
+  "measurements": {
+    "fruit_count": {
+      "label": "Fruit count",
+      "decimals": 0,
+      "compute": {
+        "type": "count",
+        "regions": "fruits"
+      }
+    },
+    "ripe_ratio": {
+      "label": "Ripe-colour share",
+      "unit": "%",
+      "decimals": 1,
+      "guard": 2,
+      "bands": [
+        {
+          "max": 30,
+          "label": "unripe"
+        },
+        {
+          "max": 70,
+          "label": "turning"
+        },
+        {
+          "label": "ripe"
+        }
+      ],
+      "compute": {
+        "type": "area_ratio",
+        "mask": "ripe",
+        "within": "fruit"
+      }
+    },
+    "blemish_ratio": {
+      "label": "Blemish share",
+      "unit": "%",
+      "decimals": 1,
+      "guard": 0.3,
+      "typical": 0.4,
+      "compute": {
+        "type": "area_ratio",
+        "mask": "blemish",
+        "within": "fruit"
+      }
+    },
+    "diameter": {
+      "label": "Diameter",
+      "unit": "mm",
+      "decimals": 0,
+      "guard": 2,
+      "range": [
+        0,
+        150
+      ],
+      "compute": {
+        "type": "max",
+        "regions": "fruits",
+        "attr": "diameter"
+      }
+    },
+    "ripeness_class": {
+      "label": "Recognised class",
+      "compute": {
+        "type": "top_label",
+        "regions": "fruits"
+      }
+    }
+  },
+  "rules": {
+    "pick": {
+      "label": "Meets the picking standard",
+      "when": {
+        "all": [
+          {
+            "m": "ripe_ratio",
+            "op": ">=",
+            "value": 70
+          },
+          {
+            "m": "blemish_ratio",
+            "op": "<=",
+            "value": 3
+          },
+          {
+            "m": "diameter",
+            "op": ">=",
+            "value": 55
+          }
+        ]
+      }
+    },
+    "grade": {
+      "label": "Fruit grade",
+      "cases": [
+        {
+          "value": "Grade 1",
+          "when": {
+            "all": [
+              {
+                "m": "ripe_ratio",
+                "op": ">=",
+                "value": 85
+              },
+              {
+                "m": "blemish_ratio",
+                "op": "<=",
+                "value": 1
+              },
+              {
+                "m": "diameter",
+                "op": ">=",
+                "value": 65
+              }
+            ]
+          }
+        },
+        {
+          "value": "Grade 2",
+          "when": {
+            "all": [
+              {
+                "m": "ripe_ratio",
+                "op": ">=",
+                "value": 70
+              },
+              {
+                "m": "blemish_ratio",
+                "op": "<=",
+                "value": 3
+              },
+              {
+                "m": "diameter",
+                "op": ">=",
+                "value": 55
+              }
+            ]
+          }
+        },
+        {
+          "value": "Out of grade"
+        }
+      ]
+    }
+  },
+  "questions": {
+    "pick": {
+      "type": "noul",
+      "instructions": "Should this fruit be picked now?"
+    },
+    "grade": {
+      "type": "choice",
+      "instructions": "Which grade is this fruit?",
+      "criteria": {
+        "Grade 1": "fully ripe, almost no blemishes, large",
+        "Grade 2": "meets the picking standard but not grade 1",
+        "Out of grade": "below the picking standard"
+      }
+    },
+    "use": {
+      "type": "choice",
+      "instructions": "Considering ripeness, blemishes and size, what is the best use for this fruit?",
+      "criteria": {
+        "Fresh market": "looks good, can be sold fresh",
+        "Processing": "edible, but appearance or size is not suited to fresh sale",
+        "Leave on the plant": "not ripe yet, leave it on the plant",
+        "Discard": "badly blemished, should not be sold"
+      }
+    }
+  },
+  "bindings": {
+    "pick": {
+      "rule": "pick"
+    },
+    "grade": {
+      "rule": "grade"
+    }
+  }
+}

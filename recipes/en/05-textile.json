@@ -1,0 +1,258 @@
+{
+  "_title": "Fabric inspection",
+  "_note": "Plain-weave fabric: finds holes, stains, broken yarns and slubs, measures count, length and area, then decides accept, downgrade or reject",
+  "id": "textile",
+  "subject": "Plain-weave fabric, one frame about 160 mm × 120 mm",
+  "demo": {
+    "scene": "textile",
+    "variants": [
+      "minor",
+      "reject",
+      "ok"
+    ]
+  },
+  "train": {
+    "model": "textile-defects",
+    "scene": "textile",
+    "features": [
+      "color",
+      "texture",
+      "shape"
+    ],
+    "algo": "svm"
+  },
+  "max_side": 640,
+  "calibration": {
+    "mm_per_px": 0.25
+  },
+  "quality": {
+    "min_sharpness": 5,
+    "brightness": [
+      40,
+      230
+    ]
+  },
+  "model": "multilingual",
+  "pipeline": [
+    {
+      "op": "mask",
+      "name": "hole",
+      "method": "anomaly",
+      "pre_blur": 2.2,
+      "sigma": 28,
+      "k": 8,
+      "min_delta": 30,
+      "polarity": "dark",
+      "close": 5,
+      "min_area": 40
+    },
+    {
+      "op": "mask",
+      "name": "yarn",
+      "method": "anomaly",
+      "pre_blur": 2.2,
+      "sigma": 28,
+      "k": 6,
+      "min_delta": 9,
+      "polarity": "bright",
+      "close": 5,
+      "min_area": 30
+    },
+    {
+      "op": "mask",
+      "name": "stain",
+      "method": "chroma",
+      "pre_blur": 3,
+      "k": 8,
+      "min_delta": 6,
+      "open": 5,
+      "min_area": 120
+    },
+    {
+      "op": "mask",
+      "name": "defects",
+      "method": "combine",
+      "how": "or",
+      "of": [
+        "hole",
+        "yarn",
+        "stain"
+      ],
+      "close": 7
+    },
+    {
+      "op": "regions",
+      "name": "defects",
+      "from": "defects",
+      "min_area": 30
+    },
+    {
+      "op": "classify",
+      "model": "textile-defects",
+      "on": "regions:defects",
+      "pad": 0.25
+    }
+  ],
+  "draw": [
+    {
+      "mask": "stain",
+      "color": "#f59e0b",
+      "alpha": 0.3,
+      "label": "stain"
+    },
+    {
+      "mask": "hole",
+      "color": "#3b82f6",
+      "alpha": 0.5,
+      "label": "hole"
+    },
+    {
+      "regions": "defects",
+      "color": "#e11d48",
+      "label": "defects"
+    }
+  ],
+  "measurements": {
+    "defect_count": {
+      "label": "Defect count",
+      "decimals": 0,
+      "range": [
+        0,
+        50
+      ],
+      "compute": {
+        "type": "count",
+        "regions": "defects"
+      }
+    },
+    "max_len": {
+      "label": "Longest defect",
+      "unit": "mm",
+      "decimals": 1,
+      "guard": 2,
+      "range": [
+        0,
+        200
+      ],
+      "compute": {
+        "type": "max",
+        "regions": "defects",
+        "attr": "length"
+      }
+    },
+    "hole_area": {
+      "label": "Hole area",
+      "unit": "mm²",
+      "decimals": 1,
+      "guard": 0.5,
+      "range": [
+        0,
+        2000
+      ],
+      "compute": {
+        "type": "area",
+        "mask": "hole"
+      }
+    },
+    "stain_area": {
+      "label": "Stain area",
+      "unit": "mm²",
+      "decimals": 1,
+      "compute": {
+        "type": "area",
+        "mask": "stain"
+      }
+    },
+    "defect_ratio": {
+      "label": "Defect area share",
+      "unit": "%",
+      "decimals": 2,
+      "compute": {
+        "type": "area_ratio",
+        "mask": "defects"
+      }
+    },
+    "main_defect": {
+      "label": "Main defect type",
+      "compute": {
+        "type": "top_label",
+        "regions": "defects"
+      }
+    }
+  },
+  "rules": {
+    "verdict": {
+      "label": "Inspection result",
+      "cases": [
+        {
+          "value": "Reject",
+          "when": {
+            "any": [
+              {
+                "m": "hole_area",
+                "op": ">",
+                "value": 3
+              },
+              {
+                "m": "max_len",
+                "op": ">",
+                "value": 40
+              },
+              {
+                "m": "defect_count",
+                "op": ">=",
+                "value": 3
+              }
+            ]
+          }
+        },
+        {
+          "value": "Downgrade",
+          "when": {
+            "m": "defect_count",
+            "op": ">=",
+            "value": 1
+          }
+        },
+        {
+          "value": "Accept"
+        }
+      ]
+    }
+  },
+  "questions": {
+    "verdict": {
+      "type": "choice",
+      "instructions": "What is the inspection result for this piece of fabric?",
+      "criteria": {
+        "Accept": "no visible defects",
+        "Downgrade": "minor defects, downgrade by one class",
+        "Reject": "holes, long defects or too many defects"
+      }
+    },
+    "action": {
+      "type": "choice",
+      "instructions": "Considering the type and size of the defects, how should it be handled?",
+      "criteria": {
+        "Stock as normal": "the fabric is sound",
+        "Sell downgraded": "minor cosmetic defects",
+        "Cut around the defect": "defects are local; the rest is usable once they are cut out",
+        "Repair": "stains and other defects that can be washed out or mended"
+      }
+    },
+    "visible": {
+      "type": "score",
+      "instructions": "How visible would these defects be on the finished product?",
+      "criteria": [
+        "hardly visible",
+        "visible on close inspection",
+        "visible at a glance"
+      ]
+    }
+  },
+  "bindings": {
+    "verdict": {
+      "rule": "verdict"
+    }
+  }
+}

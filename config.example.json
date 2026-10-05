@@ -1,0 +1,49 @@
+{
+  "language": "auto",
+
+  "ui_host": "127.0.0.1",
+  "ui_port": 8090,
+  "open_browser": true,
+
+  "install_local_laya": true,
+  "start_local_laya": true,
+  "laya_host": "127.0.0.1",
+  "laya_port": 8000,
+  "models": "multilingual",
+  "default_model": "multilingual",
+  "device": "auto",
+  "preload": true,
+  "api_key": "",
+  "auto_update": true,
+
+  "install_vision": true,
+  "start_vision": true,
+  "vision_host": "127.0.0.1",
+  "vision_port": 8001,
+  "vision_backbone_urls": "auto",
+
+  "providers": {
+    "typesafe": {
+      "name": "TypeSafe 官方",
+      "name_en": "TypeSafe (official)",
+      "base_url": "https://api.typesafe.ai",
+      "api_key": "",
+      "default_model": "jev-latest"
+    },
+    "aiask": {
+      "name": "aiask.me 网络加速",
+      "name_en": "aiask.me (accelerated)",
+      "base_url": "https://aiask.me",
+      "api_key": "",
+      "default_model": "jev-latest"
+    }
+  },
+  "auto_order": ["aiask", "typesafe"],
+  "proxy": "",
+  "remote_timeout": 120,
+
+  "hf_endpoint": "auto",
+  "pip_index": "auto",
+  "torch_index": "",
+  "desktop_shortcut": true
+}

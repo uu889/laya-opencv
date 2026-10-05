@@ -1,0 +1,16 @@
+{
+  "_title": "Content moderation",
+  "_note": "Batch: several comments share one set of yes/no questions",
+  "model": "multilingual",
+  "states": [
+    "This tutorial is really clear. I followed it once and it just worked, thanks!",
+    "Message me on WhatsApp +1 555 0100 for a FREE premium account, limited spots!!!",
+    "Is the author brain-dead? What a pile of garbage.",
+    "Which folder should the config file from step 3 go in?"
+  ],
+  "questions": {
+    "spam": {"type": "noul", "instructions": "Is this comment an advertisement or an attempt to lure people elsewhere?"},
+    "abuse": {"type": "noul", "instructions": "Does this comment contain insults or personal attacks?"},
+    "question": {"type": "noul", "instructions": "Is this comment asking a question that needs an answer?"}
+  }
+}

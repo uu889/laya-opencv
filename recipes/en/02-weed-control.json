@@ -1,0 +1,247 @@
+{
+  "_title": "Weed control",
+  "_note": "Top view of a row crop: separates crop rows from inter-row weeds, measures weed cover and density, then decides whether to weed",
+  "id": "weed-control",
+  "subject": "Row-crop field, top view, frame about 1.28 m × 0.96 m",
+  "demo": {
+    "scene": "weed",
+    "variants": [
+      "light",
+      "heavy",
+      "clean"
+    ]
+  },
+  "train": {
+    "model": "weed-vs-crop",
+    "scene": "weed",
+    "features": [
+      "color",
+      "shape",
+      "texture"
+    ],
+    "algo": "svm"
+  },
+  "max_side": 640,
+  "calibration": {
+    "mm_per_px": 2.0
+  },
+  "quality": {
+    "min_sharpness": 8,
+    "brightness": [
+      30,
+      225
+    ]
+  },
+  "model": "multilingual",
+  "pipeline": [
+    {
+      "op": "mask",
+      "name": "veg",
+      "method": "exg",
+      "threshold": "otsu",
+      "open": 3,
+      "min_area": 20
+    },
+    {
+      "op": "mask",
+      "name": "rows",
+      "method": "rows",
+      "from": "veg",
+      "min_spacing": 0.15,
+      "min_height": 0.35
+    },
+    {
+      "op": "mask",
+      "name": "crop",
+      "method": "combine",
+      "how": "and",
+      "of": [
+        "veg",
+        "rows"
+      ]
+    },
+    {
+      "op": "mask",
+      "name": "weed",
+      "method": "combine",
+      "how": "sub",
+      "of": [
+        "veg",
+        "rows"
+      ],
+      "open": 3,
+      "min_area": 60
+    },
+    {
+      "op": "regions",
+      "name": "weeds",
+      "from": "weed",
+      "min_area": 60
+    },
+    {
+      "op": "classify",
+      "model": "weed-vs-crop",
+      "on": "regions:weeds",
+      "pad": 0.2
+    }
+  ],
+  "draw": [
+    {
+      "mask": "crop",
+      "color": "#14b8a6",
+      "alpha": 0.3,
+      "label": "crop rows"
+    },
+    {
+      "regions": "weeds",
+      "color": "#e11d48",
+      "label": "inter-row weeds"
+    }
+  ],
+  "measurements": {
+    "weed_cover": {
+      "label": "Weed cover",
+      "unit": "%",
+      "decimals": 2,
+      "guard": 0.03,
+      "compute": {
+        "type": "area_ratio",
+        "mask": "weed"
+      }
+    },
+    "weed_count": {
+      "label": "Weed count",
+      "decimals": 0,
+      "compute": {
+        "type": "count",
+        "regions": "weeds"
+      }
+    },
+    "weed_density": {
+      "label": "Weed density",
+      "unit": "/m²",
+      "decimals": 1,
+      "guard": 0.3,
+      "range": [
+        0,
+        200
+      ],
+      "compute": {
+        "type": "density",
+        "regions": "weeds",
+        "per": "m2"
+      }
+    },
+    "crop_cover": {
+      "label": "Crop cover",
+      "unit": "%",
+      "decimals": 1,
+      "compute": {
+        "type": "area_ratio",
+        "mask": "crop"
+      }
+    },
+    "confirmed_weeds": {
+      "label": "Weeds confirmed by recognition",
+      "decimals": 0,
+      "compute": {
+        "type": "class_count",
+        "regions": "weeds",
+        "label": "weed"
+      }
+    }
+  },
+  "rules": {
+    "need": {
+      "label": "Weeding threshold reached",
+      "when": {
+        "any": [
+          {
+            "m": "weed_cover",
+            "op": ">=",
+            "value": 0.2
+          },
+          {
+            "m": "weed_density",
+            "op": ">=",
+            "value": 3
+          }
+        ]
+      }
+    },
+    "method": {
+      "label": "Treatment",
+      "cases": [
+        {
+          "value": "Full weeding",
+          "when": {
+            "any": [
+              {
+                "m": "weed_cover",
+                "op": ">=",
+                "value": 1.0
+              },
+              {
+                "m": "weed_density",
+                "op": ">=",
+                "value": 12
+              }
+            ]
+          }
+        },
+        {
+          "value": "Spot weeding",
+          "when": {
+            "any": [
+              {
+                "m": "weed_cover",
+                "op": ">=",
+                "value": 0.2
+              },
+              {
+                "m": "weed_density",
+                "op": ">=",
+                "value": 3
+              }
+            ]
+          }
+        },
+        {
+          "value": "No action"
+        }
+      ]
+    }
+  },
+  "questions": {
+    "need": {
+      "type": "noul",
+      "instructions": "Does this field need weeding now?"
+    },
+    "method": {
+      "type": "choice",
+      "instructions": "Which treatment should be used?",
+      "criteria": {
+        "Full weeding": "many weeds over a wide area, treat the whole field",
+        "Spot weeding": "few weeds, treat only where they are",
+        "No action": "very few weeds, no work for now"
+      }
+    },
+    "compete": {
+      "type": "score",
+      "instructions": "How much competitive pressure do the weeds put on the crop?",
+      "criteria": [
+        "almost none",
+        "some, worth watching",
+        "clearly affecting crop growth"
+      ]
+    }
+  },
+  "bindings": {
+    "need": {
+      "rule": "need"
+    },
+    "method": {
+      "rule": "method"
+    }
+  }
+}

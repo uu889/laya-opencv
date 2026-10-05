@@ -1,0 +1,29 @@
+{
+  "_title": "LLM output check",
+  "_note": "Is the model's answer grounded, and does it address the question?",
+  "model": "multilingual",
+  "state": {
+    "question": "How long does a refund take to arrive after I request it?",
+    "context": "Once a refund is approved, the money is returned to your original payment method within 7 business days.",
+    "answer": "Hi! Refunds usually arrive within 3 days, and we will also send you a $50 coupon as compensation."
+  },
+  "questions": {
+    "grounded": {
+      "type": "noul",
+      "instructions": "Is every fact in the answer supported by the context?"
+    },
+    "on_topic": {
+      "type": "noul",
+      "instructions": "Does the answer address the question directly?"
+    },
+    "verdict": {
+      "type": "choice",
+      "instructions": "What should happen to this answer?",
+      "criteria": {
+        "pass": "Accurate; can be sent to the user as is",
+        "rewrite": "Contains inaccurate or unsupported content; needs a rewrite",
+        "block": "Contains prohibited or harmful content; must be blocked"
+      }
+    }
+  }
+}

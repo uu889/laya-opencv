@@ -1,0 +1,50 @@
+# 推送形如 v1.1.0 的标签时，自动打出 Windows 用的 zip 和 Linux 用的 tar.gz，
+# 并挂到同名的 GitHub Release 上。
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check sources
+        run: |
+          python3 -m py_compile app/*.py tests/*.py
+          node --check app/vision.js
+          bash -n install.sh
+          bash -n start.sh
+          for f in config.example.json examples/*/*.json recipes/*/*.json; do python3 -m json.tool "$f" > /dev/null; done
+          if [ -e config.json ]; then echo "config.json must not be committed"; exit 1; fi
+          if [ -e data ]; then echo "data/ must not be committed"; exit 1; fi
+
+      - name: Run tests
+        run: |
+          python3 -m pip install --quiet "opencv-python-headless>=4.9,<5" numpy
+          python3 -m unittest discover -s tests -v
+
+      - name: Build archives
+        run: |
+          name="laya-opencv"
+          mkdir -p "dist/$name"
+          git archive HEAD | tar -x -C "dist/$name"
+          rm -rf "dist/$name/.github" "dist/$name/.gitignore" "dist/$name/.gitattributes" "dist/$name/tests"
+          chmod +x "dist/$name/install.sh" "dist/$name/start.sh"
+          file "dist/$name/install.bat" | grep -q CRLF
+          cd dist
+          zip -qr "$name-$GITHUB_REF_NAME.zip" "$name"
+          tar -czf "$name-$GITHUB_REF_NAME.tar.gz" "$name"
+          rm -rf "$name"
+          ls -la
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --generate-notes

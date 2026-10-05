@@ -1,0 +1,19 @@
+{
+  "_title": "Model routing",
+  "_note": "Batch: judge how hard each request is, so easy ones go to a cheaper model",
+  "model": "multilingual",
+  "states": [
+    "How many days are there in a year?",
+    "Design a sharding scheme for an order system with tens of millions of users, and analyse the risks of migrating the data.",
+    "Translate hello into Spanish.",
+    "Why does this Python code deadlock? Find the cause and rewrite it to be thread-safe."
+  ],
+  "questions": {
+    "complexity": {
+      "type": "score",
+      "instructions": "How much reasoning ability does answering this request need?",
+      "criteria": ["Simple lookup or question", "Needs some analysis and organisation", "Needs multi-step reasoning or expert design"]
+    },
+    "needs_code": {"type": "noul", "instructions": "Does this request need code to be written or analysed?"}
+  }
+}

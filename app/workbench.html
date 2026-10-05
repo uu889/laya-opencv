@@ -1,0 +1,1783 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>laya-opencv</title>
+<style>
+:root {
+  --bg: #f2f6f7;
+  --wash: #dff3f0;
+  --card: #ffffff;
+  --ink: #1d2733;
+  --ink-2: #51606f;
+  --muted: #94a1ae;
+  --line: #e3e9ee;
+  --teal: #14b8a6;
+  --teal-deep: #0b8f81;
+  --teal-soft: #e5f7f4;
+  --warn: #dd7a0c;
+  --warn-soft: #fff3e2;
+  --bad: #d04848;
+  --bad-soft: #fdecec;
+  --sans: "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+  --mono: "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { background: var(--bg); }
+body {
+  margin: 0; padding: 10px 12px 28px;
+  font: 15px/1.55 var(--sans); color: var(--ink);
+  background: linear-gradient(180deg, var(--wash) 0, var(--bg) 240px) no-repeat var(--bg);
+  min-height: 100vh;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+code, .mono { font-family: var(--mono); }
+:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 2px 6px 10px; }
+.topbar h1 { margin: 0; font-size: 18px; font-weight: 700; }
+.topbar .seg button { height: 30px; padding: 0 12px; font-size: 13.5px; }
+.card {
+  background: var(--card); border-radius: 18px; padding: 22px 24px;
+  box-shadow: 0 1px 2px rgba(23, 60, 70, .05), 0 8px 24px rgba(23, 60, 70, .06);
+  margin-bottom: 18px;
+}
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.grid > .col > .card:last-child, .grid > .card { margin-bottom: 0; }
+.grid { margin-bottom: 18px; }
+@media (max-width: 980px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* 顶部配置 */
+.config-grid { display: grid; grid-template-columns: 1.3fr 1.6fr 1fr; gap: 16px; }
+@media (max-width: 860px) { .config-grid { grid-template-columns: 1fr; } }
+.field label { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; font-size: 16px; }
+.field label button { font-size: 13px; }
+.control {
+  width: 100%; height: 46px; padding: 0 14px; border: 1px solid var(--line); border-radius: 12px;
+  background: #fff; display: flex; align-items: center; gap: 10px;
+}
+select.control { appearance: auto; }
+input.control { font-family: var(--mono); }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
+.dot.ok { background: var(--teal); }
+.dot.wait { background: var(--warn); animation: blink 1.2s ease-in-out infinite; }
+.dot.bad { background: var(--bad); }
+@keyframes blink { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .dot.wait { animation: none; } }
+.status-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.endpoint { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; font-size: 14px; }
+.endpoint code { color: var(--ink-2); }
+.hint { color: var(--ink-2); }
+.hint.warn { color: var(--warn); }
+.hint.bad { color: var(--bad); }
+.versions { margin-top: 6px; font-size: 13px; color: var(--muted); }
+.route { display: inline-flex; align-items: center; gap: 8px; color: var(--ink); }
+.settings { margin-top: 14px; border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; background: #fafcfc; }
+.settings h3 { margin: 0 0 4px; font-size: 15px; }
+.settings p { margin: 0 0 12px; font-size: 13px; color: var(--ink-2); }
+.set-grid { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 14px; align-items: center; max-width: 760px; font-size: 14px; }
+.set-grid > label { color: var(--ink-2); }
+.set-grid input { height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 9px; font-family: var(--mono); font-size: 13px; width: 100%; background: #fff; }
+.set-grid input.plain { font-family: var(--sans); font-size: 14px; }
+.keyline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; min-height: 36px; }
+.keyline input { flex: 1 1 220px; width: auto; }
+.keyline .mask { font-family: var(--mono); font-size: 13px; color: var(--ink); }
+.keyline .none { color: var(--muted); }
+.set-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+.set-actions .spacer { flex: 1; }
+.btn.danger { color: var(--bad); }
+.btn.danger:hover { border-color: var(--bad); color: var(--bad); background: var(--bad-soft); }
+.btn.primary { background: var(--teal); border-color: var(--teal); color: #fff; }
+.btn.primary:hover { background: var(--teal-deep); border-color: var(--teal-deep); color: #fff; }
+.prov-msg { font-size: 13px; color: var(--ink-2); margin: 8px 0 0; min-height: 1.2em; word-break: break-word; }
+.prov-msg.bad { color: var(--bad); }
+.prov-msg.ok { color: var(--teal-deep); }
+.settings p.fine { margin: 12px 0 0; }
+@media (max-width: 560px) { .set-grid { grid-template-columns: minmax(0, 1fr); gap: 4px; } .set-grid > label { margin-top: 6px; } }
+.advanced { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 10px 22px; font-size: 14px; color: var(--ink-2); }
+.advanced label { display: flex; align-items: center; gap: 8px; }
+.advanced input { width: 96px; height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; font-family: var(--mono); font-size: 13px; }
+
+/* 说明 + 示例 */
+.intro p { margin: 0 0 14px; font-size: 16px; }
+.examples { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.examples .label { color: var(--ink-2); margin-right: 4px; }
+#example-buttons { display: contents; }
+.sep { width: 1px; height: 22px; background: var(--line); margin: 0 6px; }
+.btn {
+  height: 36px; padding: 0 14px; border: 1px solid var(--line); border-radius: 10px; background: #fff;
+  cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+}
+.btn:hover { border-color: var(--teal); color: var(--teal-deep); }
+.btn.ghost { border-color: transparent; background: transparent; }
+.btn.small { height: 30px; padding: 0 10px; font-size: 13px; border-radius: 8px; }
+.link { border: 0; background: none; padding: 0; color: var(--teal-deep); cursor: pointer; }
+.link:hover { text-decoration: underline; }
+.example-note { margin: 10px 0 -6px; font-size: 13px; color: var(--muted); min-height: 1.4em; }
+
+/* 卡片标题行 */
+.head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.head h2 { margin: 0; font-size: 18px; font-weight: 700; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #fff; }
+.seg button { border: 0; background: none; height: 34px; padding: 0 14px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--teal); color: #fff; }
+.count { margin-top: 8px; font-size: 13px; color: var(--muted); }
+
+textarea, .q input, .msg select {
+  width: 100%; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: #fff;
+}
+textarea { resize: vertical; display: block; line-height: 1.6; }
+textarea::placeholder, input::placeholder { color: var(--muted); }
+#state-text, #state-batch { min-height: 220px; font-size: 16px; padding: 14px 16px; }
+#state-json { min-height: 220px; font-family: var(--mono); font-size: 13.5px; }
+.msg { display: grid; grid-template-columns: 112px 1fr 30px; gap: 8px; margin-bottom: 8px; align-items: start; }
+.msg select { height: 42px; padding: 0 8px; }
+.msg textarea { min-height: 42px; }
+.x { width: 30px; height: 30px; border: 0; border-radius: 8px; background: none; color: var(--muted); cursor: pointer; font-size: 18px; line-height: 1; }
+.x:hover { background: var(--bad-soft); color: var(--bad); }
+
+/* 题目 */
+.empty { text-align: center; color: var(--muted); padding: 30px 0 22px; }
+.q { border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+.q-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.q-top input { flex: 1; height: 36px; padding: 0 10px; font-family: var(--mono); font-size: 13.5px; border-radius: 9px; }
+.badge { flex: none; font-size: 12.5px; padding: 3px 9px; border-radius: 999px; background: var(--teal-soft); color: var(--teal-deep); }
+.badge.choice { background: #eaf1ff; color: #2f5fc4; }
+.badge.score { background: #f3ecff; color: #6b3fc0; }
+.q textarea { min-height: 44px; }
+.opts { margin-top: 10px; }
+.opt { display: grid; grid-template-columns: 150px 1fr 30px; gap: 8px; margin-bottom: 6px; align-items: center; }
+.opt.level { grid-template-columns: 30px 1fr 30px; }
+.opt input { height: 36px; padding: 0 10px; border-radius: 9px; font-size: 14px; }
+.opt .key { font-family: var(--mono); font-size: 13px; }
+.opt .idx { text-align: center; color: var(--muted); font-family: var(--mono); font-size: 13px; }
+@media (max-width: 560px) { .opt { grid-template-columns: 96px 1fr 30px; } }
+
+/* 运行条 */
+.runbar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 16px 18px; }
+.run {
+  height: 52px; padding: 0 26px; border: 0; border-radius: 12px; background: var(--teal); color: #fff;
+  font-size: 17px; cursor: pointer; display: inline-flex; align-items: center; gap: 10px;
+}
+.run:hover:not(:disabled) { background: var(--teal-deep); }
+.run:disabled { opacity: .5; cursor: not-allowed; }
+.kbd { color: var(--muted); }
+
+/* 结果 */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); padding-bottom: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.tabs button { border: 0; background: none; height: 36px; padding: 0 14px; border-radius: 9px; cursor: pointer; color: var(--ink-2); }
+.tabs button[aria-selected="true"] { background: var(--teal-soft); color: var(--teal-deep); }
+.placeholder { text-align: center; color: var(--muted); padding: 90px 0; font-size: 16px; }
+.placeholder small { font-size: 13.5px; }
+.meta { font-size: 13.5px; color: var(--ink-2); margin-bottom: 14px; display: flex; flex-wrap: wrap; gap: 4px 18px; }
+.meta .reason { flex-basis: 100%; color: var(--muted); }
+.ans { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin-bottom: 12px; }
+.ans.low { border-color: #f1c58c; background: #fffaf2; }
+.ans-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ans-head code { font-size: 13.5px; }
+.flag { font-size: 12.5px; padding: 2px 8px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); }
+.ans-q { margin: 4px 0 10px; font-size: 13.5px; color: var(--ink-2); }
+.verdict { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.verdict strong { font-size: 24px; line-height: 1.2; }
+.verdict span { color: var(--ink-2); font-size: 14px; }
+.row { display: grid; grid-template-columns: minmax(90px, 34%) 1fr 58px; gap: 10px; align-items: center; font-size: 13.5px; margin-bottom: 5px; }
+.row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); }
+.row.win .name { color: var(--ink); font-weight: 600; }
+.row .pct { text-align: right; font-family: var(--mono); font-size: 12.5px; color: var(--ink-2); }
+.bar { height: 8px; border-radius: 99px; background: #edf1f4; overflow: hidden; position: relative; }
+.bar i { display: block; height: 100%; border-radius: 99px; background: #b9c6d1; }
+.row.win .bar i { background: var(--teal); }
+.bar.half::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: #fff; }
+.conf { margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+.errbox { border: 1px solid #f3c0c0; background: var(--bad-soft); color: #8f2626; border-radius: 12px; padding: 14px 16px; white-space: pre-wrap; word-break: break-word; }
+.tools { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; align-items: center; }
+pre.code {
+  margin: 0; padding: 14px 16px; border-radius: 12px; background: #16232b; color: #d9e7ea;
+  font: 13px/1.6 var(--mono); overflow: auto; max-height: 620px; white-space: pre; tab-size: 2;
+}
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--ink-2); font-weight: 600; white-space: nowrap; }
+th code { font-size: 12.5px; }
+td.state { min-width: 220px; max-width: 420px; }
+td.cell { white-space: nowrap; }
+td.cell small { color: var(--muted); font-family: var(--mono); margin-left: 6px; }
+td.yes { color: var(--teal-deep); font-weight: 600; }
+td.lowc { background: #fffaf2; color: var(--warn); }
+.hist { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; width: 100%; text-align: left; border: 1px solid var(--line); background: #fff; border-radius: 12px; padding: 10px 14px; margin-bottom: 8px; cursor: pointer; }
+.hist:hover { border-color: var(--teal); }
+.hist > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hist .t { color: var(--muted); font-size: 12.5px; font-family: var(--mono); }
+.hist .s { grid-column: 1 / -1; color: var(--ink-2); font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hist .bad { color: var(--bad); }
+
+/* 调试 */
+details.debug summary { cursor: pointer; font-size: 17px; font-weight: 700; list-style-position: inside; }
+details.debug summary #debug-count { color: var(--muted); font-weight: 400; font-size: 14px; margin-left: 8px; }
+.dbg { margin-top: 14px; }
+.dbg h3 { margin: 0 0 6px; font-size: 13.5px; font-weight: 600; color: var(--ink-2); font-family: var(--mono); }
+.dbg-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 860px) { .dbg-cols { grid-template-columns: 1fr; } }
+.dbg pre.code { max-height: 320px; }
+/* 视图切换 */
+.topbar .nav { margin-right: auto; margin-left: 14px; }
+@media (max-width: 720px) { .topbar { flex-wrap: wrap; } .topbar .nav { order: 3; margin-left: 0; width: 100%; } .topbar .nav button { flex: 1; } }
+
+/* 视觉检测 / 训练 */
+.vnote { margin: 10px 0 0; font-size: 13.5px; color: var(--ink-2); min-height: 1.4em; }
+.vstatus { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14px; margin-bottom: 12px; }
+.vstatus .hint { font-size: 13.5px; }
+a.btn { text-decoration: none; color: inherit; }
+.btn.on { background: var(--teal-soft); border-color: var(--teal); color: var(--teal-deep); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.drop { border: 2px dashed var(--line); border-radius: 14px; padding: 26px 16px; text-align: center; color: var(--ink-2); cursor: pointer; background: #fafcfc; }
+.drop.over { border-color: var(--teal); background: var(--teal-soft); }
+.drop small { display: block; margin-top: 4px; color: var(--muted); font-size: 13px; }
+.imgbox { border-radius: 12px; overflow: hidden; background: #16232b; line-height: 0; text-align: center; }
+.imgbox img, .imgbox video { max-width: 100%; max-height: 520px; }
+.imgbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+.imgbar .spacer { flex: 1; }
+.legend { display: flex; gap: 6px 14px; flex-wrap: wrap; font-size: 13px; color: var(--ink-2); margin-top: 8px; }
+.legend i { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.vfield { margin-bottom: 10px; }
+.vfield > label { display: block; font-size: 13.5px; color: var(--ink-2); margin-bottom: 4px; }
+.vfield input[type="text"], .vfield input[type="number"], .vfield select, .inline-input {
+  height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 9px; background: #fff; font-size: 14px; max-width: 100%;
+}
+.vfield input[type="text"], .vfield select { width: 100%; }
+#v-context { min-height: 64px; font-size: 14.5px; }
+#v-recipe-json { min-height: 320px; font-family: var(--mono); font-size: 12.5px; white-space: pre; overflow: auto; }
+details.fold > summary { cursor: pointer; font-weight: 700; font-size: 16px; }
+details.fold[open] > summary { margin-bottom: 12px; }
+.check { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; cursor: pointer; }
+.check input { width: 16px; height: 16px; accent-color: var(--teal); }
+.banner { border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; font-size: 15px; }
+.banner.ok { background: var(--teal-soft); color: #0a6e63; }
+.banner.review { background: var(--warn-soft); color: #9a5406; }
+.banner.info { background: #eef3f7; color: var(--ink-2); }
+.banner ul { margin: 6px 0 0; padding-left: 20px; font-size: 13.5px; }
+.banner .btn { margin-top: 8px; }
+.src { font-size: 12.5px; padding: 2px 8px; border-radius: 999px; background: #eef3f7; color: var(--ink-2); }
+.src.rule { background: #e8eefc; color: #2f5fc4; }
+.flag.bad { background: var(--bad-soft); color: var(--bad); }
+.flag.good { background: var(--teal-soft); color: var(--teal-deep); }
+.cmp { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; font-size: 13.5px; margin-top: 8px; }
+.cmp dt { color: var(--ink-2); }
+.cmp dd { margin: 0; word-break: break-word; }
+.cmp dd small { color: var(--muted); }
+.review-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; font-size: 13px; color: var(--ink-2); }
+.review-row select { height: 30px; border: 1px solid var(--line); border-radius: 8px; background: #fff; font-size: 13px; padding: 0 6px; }
+td.num, th.num { text-align: right; font-family: var(--mono); font-size: 12.5px; white-space: nowrap; }
+td.ok { color: var(--teal-deep); } td.no { color: var(--bad); } td.edge { color: var(--warn); }
+.sub { margin: 18px 0 8px; font-size: 14.5px; font-weight: 700; }
+.sub small { font-weight: 400; color: var(--muted); margin-left: 8px; }
+.fine { font-size: 13px; color: var(--ink-2); margin: 8px 0; }
+.progress { height: 8px; border-radius: 99px; background: #edf1f4; overflow: hidden; margin: 8px 0 4px; }
+.progress i { display: block; height: 100%; background: var(--teal); border-radius: 99px; transition: width .3s; }
+.cls { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; }
+.cls.over { border-color: var(--teal); background: var(--teal-soft); }
+.cls-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.cls-head strong { font-size: 15px; }
+.cls-head .n { color: var(--muted); font-size: 13px; }
+.cls-head .spacer { flex: 1; }
+.thumbs { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 8px; }
+.thumbs img { width: 46px; height: 46px; object-fit: cover; border-radius: 6px; background: #eef3f7; }
+.rowline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+.rowline .grow { flex: 1 1 160px; min-width: 0; }
+.rowline .inline-input { width: 150px; }
+.rowline .inline-input.grow { width: auto; }
+.checks { display: flex; gap: 6px 16px; flex-wrap: wrap; }
+table.cm td, table.cm th { text-align: center; padding: 6px 8px; }
+table.cm td.diag { font-weight: 700; }
+.acc { font-size: 30px; font-weight: 700; line-height: 1.2; }
+.acc small { font-size: 14px; font-weight: 400; color: var(--ink-2); margin-left: 8px; }
+.model { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
+.model-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.model-head .spacer { flex: 1; }
+.model .meta-line { font-size: 13px; color: var(--ink-2); margin-top: 2px; }
+.toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); background: #16232b; color: #fff; padding: 9px 16px; border-radius: 10px; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s; }
+.toast.on { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1 data-i18n="title">laya-opencv</h1>
+  <div class="seg nav" id="view" role="group" data-i18n-aria="view.aria">
+    <button type="button" data-view="text" data-i18n="view.text">文本判定</button>
+    <button type="button" data-view="vision" data-i18n="view.vision">视觉检测</button>
+    <button type="button" data-view="train" data-i18n="view.train">模型训练</button>
+  </div>
+  <div class="seg" id="lang" role="group" aria-label="Language / 语言">
+    <button type="button" data-lang="zh" lang="zh-CN">中文</button>
+    <button type="button" data-lang="en" lang="en">English</button>
+  </div>
+</div>
+
+<header class="card" data-view="text vision">
+  <div class="config-grid">
+    <div class="field">
+      <label for="target"><span data-i18n="f.target">接口</span> <button class="link" id="toggle-settings" type="button" data-i18n="f.settings">接口设置</button></label>
+      <select class="control" id="target"></select>
+    </div>
+    <div class="field">
+      <label for="model"><span data-i18n="f.model">模型</span> <button class="link" id="refresh-models" type="button" data-i18n="f.refreshModels">刷新模型列表</button></label>
+      <input class="control" id="model" list="model-list" data-i18n-ph="f.modelPh" autocomplete="off" spellcheck="false">
+      <datalist id="model-list"></datalist>
+    </div>
+    <div class="field" id="mode-field">
+      <label for="mode" data-i18n="f.mode">请求方式</label>
+      <select class="control" id="mode">
+        <option value="single" data-i18n="mode.single">单条</option>
+        <option value="batch" data-i18n="mode.batch">批量</option>
+      </select>
+    </div>
+  </div>
+  <div class="endpoint">
+    <span class="route" role="status"><span class="dot" id="status-dot"></span><span id="status-text"></span></span>
+    <code id="endpoint">POST /v1/systemone</code>
+    <span class="hint" id="hint"></span>
+  </div>
+  <div class="versions" id="versions" hidden></div>
+  <div class="settings" id="settings" hidden></div>
+  <div class="advanced">
+    <label><span data-i18n="adv.minConf">置信度阈值</span> <input id="min-conf" inputmode="decimal" data-i18n-ph="adv.notSet" autocomplete="off"></label>
+    <label>max_len <input id="max-len" inputmode="numeric" data-i18n-ph="adv.default" autocomplete="off"></label>
+    <span data-i18n="adv.note"></span>
+  </div>
+</header>
+
+<section class="card intro" data-view="text">
+  <p data-i18n="intro"></p>
+  <div class="examples">
+    <span class="label" data-i18n="ex.label">示例:</span>
+    <span id="example-buttons"></span>
+    <span class="sep"></span>
+    <button class="btn" id="import" type="button" data-i18n="ex.import">导入 JSON</button>
+    <button class="btn ghost" id="reset" type="button" data-i18n="ex.reset">重置</button>
+    <input type="file" id="file" accept=".json,application/json" hidden>
+  </div>
+  <p class="example-note" id="example-note"></p>
+</section>
+
+<main class="grid" data-view="text">
+  <div class="col">
+    <section class="card">
+      <div class="head">
+        <h2 id="state-title"></h2>
+        <div class="seg" id="state-tabs" role="group" data-i18n-aria="state.format">
+          <button type="button" data-tab="text" data-i18n="state.text">文本</button>
+          <button type="button" data-tab="json" data-i18n="state.json">JSON 对象</button>
+          <button type="button" data-tab="messages" data-i18n="state.messages">消息列表</button>
+        </div>
+      </div>
+      <div id="state-body"></div>
+      <div class="count" id="state-count"></div>
+    </section>
+
+    <section class="card">
+      <div class="head">
+        <h2 id="q-title"></h2>
+        <div>
+          <button class="btn" type="button" data-add="noul" data-i18n="q.addNoul">＋ 是非</button>
+          <button class="btn" type="button" data-add="choice" data-i18n="q.addChoice">＋ 单选</button>
+          <button class="btn" type="button" data-add="score" data-i18n="q.addScore">＋ 打分</button>
+        </div>
+      </div>
+      <div id="questions"></div>
+    </section>
+
+    <section class="card runbar">
+      <button class="run" id="run" type="button"><span aria-hidden="true">▷</span><span id="run-label"></span></button>
+      <span class="kbd">Ctrl / ⌘ + Enter</span>
+      <span class="hint warn" id="problem"></span>
+    </section>
+  </div>
+
+  <section class="card">
+    <div class="tabs" id="tabs" role="tablist">
+      <button type="button" role="tab" data-tab="result" data-i18n="tab.result">结果</button>
+      <button type="button" role="tab" data-tab="raw" data-i18n="tab.raw">原始响应</button>
+      <button type="button" role="tab" data-tab="request" data-i18n="tab.request">请求 JSON</button>
+      <button type="button" role="tab" data-tab="code" data-i18n="tab.code">代码片段</button>
+      <button type="button" role="tab" data-tab="history" data-i18n="tab.history">历史</button>
+    </div>
+    <div id="panel"></div>
+  </section>
+</main>
+
+<div id="vision-root" data-view="vision" hidden></div>
+<div id="train-root" data-view="train" hidden></div>
+
+<section class="card" data-view="text">
+  <details class="debug" id="debug">
+    <summary><span data-i18n="debug.title">调试</span><span id="debug-count">(0)</span></summary>
+    <div id="debug-body"></div>
+  </details>
+</section>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+"use strict";
+
+/* ---------- 文案 / UI strings ---------- */
+const I18N = {
+  zh: {
+    "title": "laya-opencv",
+    "view.aria": "功能", "view.text": "文本判定", "view.vision": "视觉检测", "view.train": "模型训练",
+    "f.target": "接口", "f.settings": "接口设置", "f.model": "模型（可直接输入自定义模型名）",
+    "f.refreshModels": "刷新模型列表", "f.modelPh": "留空 = 自动选择", "f.mode": "请求方式",
+    "mode.single": "单条", "mode.batch": "批量（每行一条）",
+    "adv.minConf": "置信度阈值", "adv.notSet": "不设置", "adv.default": "默认",
+    "adv.note": "阈值填 0~1，低于它的答案会标成「低置信度」；max_len 只对本地 Laya 生效，长文档可调到 8192。",
+    "intro": "Laya 和 Jev 都是判定模型：给它一段素材（state）和几道题，它返回每道题的概率分布，而不是生成文本。同一份请求可以发给本地 Laya，也可以发给 TypeSafe 的 Jev。",
+    "ex.label": "示例:", "ex.import": "导入 JSON", "ex.reset": "重置", "ex.none": "examples 文件夹里没有示例",
+    "ex.imported": "已导入 {name}", "ex.importFail": "导入失败：{msg}", "ex.note": "{title}：{note}",
+    "state.title": "素材（state）", "state.titleBatch": "素材（states，每行一条）", "state.format": "素材格式",
+    "state.text": "文本", "state.json": "JSON 对象", "state.messages": "消息列表",
+    "state.phText": "粘贴要判定的文本", "state.phBatch": "每行一条要判定的文本，最多 64 条",
+    "msg.role": "角色", "msg.ph": "消息内容", "msg.del": "删除这条消息", "msg.add": "＋ 消息",
+    "count.chars": "{n} 字符", "count.items": "{n} 条", "count.msgs": "{n} 条消息",
+    "q.title": "题目 ({n})", "q.addNoul": "＋ 是非", "q.addChoice": "＋ 单选", "q.addScore": "＋ 打分",
+    "type.noul": "是非", "type.choice": "单选", "type.score": "打分",
+    "q.empty": "点击右上角按钮添加题目，或先载入一个示例",
+    "q.idPh": "题目 ID，例如 department", "q.idAria": "题目 ID", "q.del": "删除这道题", "q.aria": "问题",
+    "q.phNoul": "写一个能用「是 / 否」回答的问题", "q.phChoice": "写出问题，下面列出可选项", "q.phScore": "写出问题，下面从低到高列出等级",
+    "opt.key": "标签", "opt.keyAria": "选项标签", "opt.desc": "这个选项的含义", "opt.descAria": "选项说明", "opt.del": "删除选项", "opt.add": "＋ 选项",
+    "lvl.ph0": "最低等级的说明", "lvl.ph": "等级说明", "lvl.aria": "等级 {n} 的说明", "lvl.del": "删除等级", "lvl.add": "＋ 等级",
+    "run": "运行", "run.running": "运行中…", "run.waiting": "等待模型加载…", "run.waitingNote": "模型加载完会自动运行，再点一次取消",
+    "tab.result": "结果", "tab.raw": "原始响应", "tab.request": "请求 JSON", "tab.code": "代码片段", "tab.history": "历史",
+    "debug.title": "调试：提交参数 / 返回结果", "toast.copied": "已复制",
+    "p.key": "请先在「接口设置」里填写「{name}」的密钥",
+    "p.localDisabled": "这台机器没有启用本地 Laya，请换一个接口",
+    "p.localExited": "本地 Laya 已退出，报错在启动窗口里，修好后重新启动",
+    "p.batchEmpty": "请填写素材，每行一条", "p.batchMax": "批量接口一次最多 64 条，现在是 {n} 条",
+    "p.stateEmpty": "请填写素材（state）", "p.badJson": "素材不是合法的 JSON：{msg}", "p.msgEmpty": "请至少填写一条消息",
+    "p.noQuestions": "请添加至少一道题目", "p.nth": "第 {n} 题", "p.noId": "第 {n} 题缺少题目 ID", "p.dupId": "题目 ID「{id}」重复了",
+    "p.noText": "「{name}」还没写问题", "p.opt2": "「{name}」至少需要 2 个选项", "p.optBlank": "「{name}」有选项没填标签",
+    "p.optDup": "「{name}」的选项标签有重复", "p.lvl2": "「{name}」至少需要 2 个等级", "p.lvlBlank": "「{name}」有等级没写说明",
+    "p.minConf": "置信度阈值要填 0 到 1 之间的数", "p.maxLen": "max_len 要填正整数",
+    "e.top": "JSON 顶层必须是一个对象", "e.noQ": "缺少 questions 对象",
+    "e.net": "网络请求没有发出去：{msg}\n工作台服务可能已经关闭，请重新运行 start.bat / start.sh。",
+    "r.running": "正在请求…", "r.waiting1": "本地模型还在加载，加载完成后会自动运行。",
+    "r.waiting2": "首次启动要下载模型（约 650 MB），下载进度在启动窗口里。",
+    "r.empty": "运行后，结果会显示在这里", "r.fail": "请求失败", "r.failedItem": "第 {n} 条素材失败：{msg}",
+    "tip.remoteAuth": "密钥无效，或者这个密钥没有该模型的权限。到「接口设置」里检查密钥，并确认模型名。",
+    "tip.remote404": "接口地址或模型名不对。到「接口设置」里点「测试连接」看看能取到哪些模型。",
+    "tip.remote429": "请求太频繁或额度用完了，稍后再试。",
+    "tip.remoteNet": "本机连不上这个接口。检查网络，或在 config.json 的 proxy 里指定代理。",
+    "tip.local503": "本地服务还没准备好或正忙。看一下启动窗口里的进度，稍后再试。",
+    "tip.local401": "本地服务设置了访问密钥，请在 config.json 的 api_key 里填上同一个密钥后重新启动。",
+    "tip.local500": "服务端推理出错，具体原因在启动窗口的日志里。",
+    "tip.bad": "这是请求内容的问题，按上面的提示修改即可。",
+    "r.noAnswers": "响应里没有 answers",
+    "r.batchNote": "是非题显示「是」的概率，单选题显示所选项的置信度。完整概率分布在「原始响应」里。",
+    "r.lowConf": "低置信度", "r.yes": "是", "r.no": "否", "r.yesProb": "「是」的概率 {p}", "r.nearest": "最接近：{text}",
+    "r.conf": "置信度 {v}", "r.gate": "门控: {v}", "gate.passed": "通过", "gate.abstained": "未达阈值", "gate.unevaluated": "无法评估",
+    "m.iface": "接口 {v}", "m.model": "模型 {v}", "m.infer": "推理 {v} ms", "m.round": "往返 {v} ms", "m.tokens": "输入 {v} tokens", "m.route": "路由：{v}",
+    "m.localGate": "置信度阈值由工作台在本地判断（远程接口没有这个参数）。",
+    "trail.fail": "{name} 失败（{why}）", "trail.ok": "{name} 成功", "trail.unreach": "连不上",
+    "th.material": "素材", "raw.empty": "运行后，这里显示服务返回的完整 JSON",
+    "btn.copy": "复制", "btn.download": "下载 request.json",
+    "h.empty": "还没有运行记录", "h.clear": "清空历史", "h.tip": "点一条记录，把它的请求载回左边", "h.loaded": "已载入",
+    "h.failed": "失败", "h.batch": "批量 {n} 条", "d.netErr": "网络错误",
+    "s.connecting": "正在连接…", "s.offline": "未连接到工作台服务", "s.keySet": "密钥已设置", "s.keyMissing": "未设置密钥",
+    "s.localReady": "本地 Laya 已就绪", "s.localDisabled": "本地 Laya 未启用", "s.localExited": "本地 Laya 已退出", "s.code": "（代码 {n}）",
+    "s.localLoading": "本地 Laya 模型加载中…",
+    "hint.offline": "页面需要通过 start.bat / start.sh 启动后访问，直接打开 HTML 文件无法调用服务。",
+    "hint.needKey": "模型「{model}」要走远程接口，点右上方的「接口设置」填写密钥。",
+    "hint.via": "经本机转发到 {url}", "hint.backup": "，失败时自动改用 {names}",
+    "hint.batchRemote": "。远程接口没有批量端点，会逐条调用并按条计费",
+    "hint.localDisabled": "这台机器没有启用本地模型。换一个接口，或者安装本地 Laya 后重新启动。",
+    "hint.localExited": "本地 Laya 没有运行，报错信息在启动窗口里。远程接口仍然可用。",
+    "hint.loading": "模型还在加载。首次启动要下载模型，进度在启动窗口里，加载完会自动变成「已就绪」。",
+    "hint.autoRoute": "模型留空：由 Laya 自动路由，中文走 multilingual，英文走 english（没加载过的模型首次使用要先下载）。",
+    "hint.notLaya": "「{model}」不是 Laya 的模型名，本地服务会忽略它并自动路由。要调用 Jev，把接口换成「自动」或远程接口。",
+    "hint.notLoaded": "「{name}」还没有加载，首次调用会先下载并加载它，可能需要几分钟。",
+    "hint.addr": "服务地址 {url}",
+    "t.auto": "自动（推荐）", "t.local": "本地 Laya", "t.noKey": "（未设置密钥）",
+    "set.note": "密钥保存在本机的 config.json 里，请求由本机工作台转发，密钥不会出现在浏览器发出的请求中。",
+    "set.localNoKey": "本地 Laya 不需要密钥。",
+    "set.autoLocal": "当前模型由本地 Laya 处理，不需要密钥。要管理某个远程接口的密钥，先在「接口」里选中它。",
+    "set.autoUses": "「自动」当前会用这个接口。",
+    "set.name": "名称", "set.url": "接口地址", "set.urlPh": "https://example.com（不用带 /v1/systemone）",
+    "set.model": "默认模型", "set.modelPh": "例如 jev-latest，可留空", "set.key": "密钥",
+    "set.keyEnv": "来自环境变量 {name}",
+    "set.keyPh": "粘贴密钥", "set.keyPhEdit": "粘贴新的密钥", "set.keyOptionalPh": "粘贴密钥（这个接口不需要密钥就留空）",
+    "set.addKey": "添加密钥", "set.editKey": "修改", "set.delKey": "删除", "set.saveKey": "保存密钥", "set.cancel": "取消",
+    "set.confirmDelKey": "确认删除密钥", "set.keyEmpty": "请先粘贴密钥",
+    "set.keyAdded": "密钥已添加", "set.keyChanged": "密钥已修改", "set.keyDeleted": "密钥已删除",
+    "set.saveSettings": "保存设置", "set.delProv": "删除这个接口", "set.confirmDelProv": "确认删除「{name}」",
+    "set.provAdded": "接口已添加", "set.provDeleted": "接口已删除",
+    "set.addTitle": "添加第三方接口",
+    "set.addNote": "适用于任何提供 /v1/systemone 的服务。接口地址只填到域名或路径前缀，工作台会自动加上 /v1/systemone。",
+    "set.addBtn": "添加接口", "t.add": "＋ 添加第三方接口…", "s.keyOptional": "无密钥",
+    "set.test": "测试连接", "set.saved": "已保存", "set.saveFail": "保存失败", "set.testing": "正在测试…",
+    "set.connFail": "连接失败：{msg}", "set.connOk": "连接正常，可用模型 {n} 个", "set.testFail": "测试失败：{msg}",
+    "set.rule": "「自动」的规则：模型名是 multilingual / english / typed-decisions（或留空）时用本地 Laya；其他模型名（如 jev-latest）按 config.json 里 auto_order 的顺序找第一个填了密钥的远程接口，连不上或被拒绝时自动换下一个。",
+    "models.partial": "部分接口没取到模型列表 — {errs}", "models.ok": "已刷新，共 {n} 个模型", "models.fail": "刷新失败：{msg}",
+    "sn.noBatch": "「{name}」没有批量端点，工作台是逐条调用 /v1/systemone 的。下面是第 1 条的写法，其余各条替换 state 即可。",
+    "sn.curl1": "1) 把请求内容保存为 request.json（UTF-8 编码），可以点上面的「下载 request.json」",
+    "sn.curl2": "2) 在同一个目录里执行（Windows PowerShell 里写 curl.exe，Linux 里写 curl）",
+    "sn.key": "你的密钥", "sn.noProxy": "本机请求不走代理",
+    "sn.js": "适用于 Node.js 18+ 或后端服务；密钥不要写进浏览器端代码",
+    "v.wrap": "（{note}）", "v.latest": "已是最新", "v.upgraded": "本次启动已从 {from} 自动升级",
+    "v.available": "有新版本 {v}，自动升级已关闭", "v.failed": "新版本 {v} 自动升级失败，原因见启动窗口",
+    "v.offline": "这次没能检查更新", "v.rolledBack": "新版本 {v} 无法启动，已自动回退",
+    "v.skipped": "已跳过无法启动的 {v}", "v.running": "有新版本 {v}，重新启动工作台后升级",
+    "v.model": "模型版本 {sha}", "v.modelUpdated": "本次启动已更新", "v.modelPending": "模型文件有更新，加载时自动下载",
+    "sep.list": "、", "sep.colon": "：", "sep.semi": "；", "sep.gap": "　", "r.failAt": "{name} 请求失败"
+  },
+  en: {
+    "title": "laya-opencv",
+    "view.aria": "Section", "view.text": "Text decisions", "view.vision": "Visual inspection", "view.train": "Model training",
+    "f.target": "Interface", "f.settings": "Interface settings", "f.model": "Model (any model name can be typed)",
+    "f.refreshModels": "Refresh model list", "f.modelPh": "Empty = choose automatically", "f.mode": "Request type",
+    "mode.single": "Single", "mode.batch": "Batch (one per line)",
+    "adv.minConf": "Confidence threshold", "adv.notSet": "none", "adv.default": "default",
+    "adv.note": "The threshold is between 0 and 1; answers below it are flagged as low confidence. max_len only applies to local Laya; raise it to 8192 for long documents.",
+    "intro": "Laya and Jev are decision models: give them some material (state) and a few questions, and they return a probability distribution for each question instead of generated text. The same request can go to local Laya or to TypeSafe's Jev.",
+    "ex.label": "Examples:", "ex.import": "Import JSON", "ex.reset": "Reset", "ex.none": "No examples in the examples folder",
+    "ex.imported": "Imported {name}", "ex.importFail": "Import failed: {msg}", "ex.note": "{title}: {note}",
+    "state.title": "Material (state)", "state.titleBatch": "Materials (states, one per line)", "state.format": "Material format",
+    "state.text": "Text", "state.json": "JSON object", "state.messages": "Messages",
+    "state.phText": "Paste the text to evaluate", "state.phBatch": "One text per line, up to 64",
+    "msg.role": "Role", "msg.ph": "Message content", "msg.del": "Remove this message", "msg.add": "+ Message",
+    "count.chars": "{n} characters", "count.items": "{n} items", "count.msgs": "{n} messages",
+    "q.title": "Questions ({n})", "q.addNoul": "+ Yes / No", "q.addChoice": "+ Choice", "q.addScore": "+ Score",
+    "type.noul": "Yes / No", "type.choice": "Choice", "type.score": "Score",
+    "q.empty": "Add a question with the buttons above, or load an example first",
+    "q.idPh": "Question ID, e.g. department", "q.idAria": "Question ID", "q.del": "Remove this question", "q.aria": "Question",
+    "q.phNoul": "Write a question that can be answered yes or no", "q.phChoice": "Write the question, then list the options below",
+    "q.phScore": "Write the question, then list the levels below from lowest to highest",
+    "opt.key": "Label", "opt.keyAria": "Option label", "opt.desc": "What this option means", "opt.descAria": "Option description", "opt.del": "Remove option", "opt.add": "+ Option",
+    "lvl.ph0": "Description of the lowest level", "lvl.ph": "Level description", "lvl.aria": "Description of level {n}", "lvl.del": "Remove level", "lvl.add": "+ Level",
+    "run": "Run", "run.running": "Running…", "run.waiting": "Waiting for the model…", "run.waitingNote": "Runs automatically once the model has loaded; click again to cancel",
+    "tab.result": "Result", "tab.raw": "Raw response", "tab.request": "Request JSON", "tab.code": "Code", "tab.history": "History",
+    "debug.title": "Debug: requests and responses", "toast.copied": "Copied",
+    "p.key": "Add the API key for \"{name}\" under Interface settings first",
+    "p.localDisabled": "Local Laya is not enabled on this machine; pick another interface",
+    "p.localExited": "Local Laya has exited; the error is in the launcher window. Fix it and restart",
+    "p.batchEmpty": "Enter the materials, one per line", "p.batchMax": "A batch takes at most 64 items; there are {n}",
+    "p.stateEmpty": "Enter the material (state)", "p.badJson": "The material is not valid JSON: {msg}", "p.msgEmpty": "Enter at least one message",
+    "p.noQuestions": "Add at least one question", "p.nth": "Question {n}", "p.noId": "Question {n} has no ID", "p.dupId": "Question ID \"{id}\" is used more than once",
+    "p.noText": "\"{name}\" has no question text", "p.opt2": "\"{name}\" needs at least 2 options", "p.optBlank": "\"{name}\" has an option without a label",
+    "p.optDup": "\"{name}\" has duplicate option labels", "p.lvl2": "\"{name}\" needs at least 2 levels", "p.lvlBlank": "\"{name}\" has a level without a description",
+    "p.minConf": "The confidence threshold must be a number between 0 and 1", "p.maxLen": "max_len must be a positive integer",
+    "e.top": "The JSON must be an object at the top level", "e.noQ": "The questions object is missing",
+    "e.net": "The request could not be sent: {msg}\nThe workbench service may have stopped; run start.bat / start.sh again.",
+    "r.running": "Requesting…", "r.waiting1": "The local model is still loading; the request will run automatically when it is ready.",
+    "r.waiting2": "The first start downloads the model (about 650 MB); progress is shown in the launcher window.",
+    "r.empty": "Results appear here after you run", "r.fail": "Request failed", "r.failedItem": "Item {n} failed: {msg}",
+    "tip.remoteAuth": "The key is invalid, or it has no access to this model. Check the key under Interface settings and confirm the model name.",
+    "tip.remote404": "The base URL or the model name is wrong. Use Test connection under Interface settings to see which models are available.",
+    "tip.remote429": "Too many requests, or the quota is used up. Try again later.",
+    "tip.remoteNet": "This machine cannot reach the interface. Check the network, or set a proxy in config.json.",
+    "tip.local503": "The local service is not ready or is busy. Check the progress in the launcher window and try again.",
+    "tip.local401": "The local service requires an access key. Put the same key in api_key in config.json and restart.",
+    "tip.local500": "Inference failed on the server; the cause is in the launcher window's log.",
+    "tip.bad": "The request content is the problem; fix it as described above.",
+    "r.noAnswers": "The response has no answers",
+    "r.batchNote": "Yes / No questions show the probability of yes; choice questions show the confidence of the chosen option. Full distributions are under Raw response.",
+    "r.lowConf": "Low confidence", "r.yes": "Yes", "r.no": "No", "r.yesProb": "Probability of yes: {p}", "r.nearest": "closest: {text}",
+    "r.conf": "Confidence {v}", "r.gate": "Gate: {v}", "gate.passed": "passed", "gate.abstained": "below threshold", "gate.unevaluated": "not evaluated",
+    "m.iface": "Interface: {v}", "m.model": "Model: {v}", "m.infer": "Inference {v} ms", "m.round": "Round trip {v} ms", "m.tokens": "Input {v} tokens", "m.route": "Routing: {v}",
+    "m.localGate": "The confidence threshold was applied locally by the workbench (remote interfaces have no such parameter).",
+    "trail.fail": "{name} failed ({why})", "trail.ok": "{name} succeeded", "trail.unreach": "unreachable",
+    "th.material": "Material", "raw.empty": "The full JSON returned by the service appears here after you run",
+    "btn.copy": "Copy", "btn.download": "Download request.json",
+    "h.empty": "No runs yet", "h.clear": "Clear history", "h.tip": "Click an entry to load its request back into the editor", "h.loaded": "Loaded",
+    "h.failed": "failed", "h.batch": "Batch of {n}", "d.netErr": "network error",
+    "s.connecting": "Connecting…", "s.offline": "Not connected to the workbench service", "s.keySet": "key saved", "s.keyMissing": "no key",
+    "s.localReady": "Local Laya ready", "s.localDisabled": "Local Laya not enabled", "s.localExited": "Local Laya exited", "s.code": " (code {n})",
+    "s.localLoading": "Local Laya is loading the model…",
+    "hint.offline": "Open this page through start.bat / start.sh; opening the HTML file directly cannot reach the service.",
+    "hint.needKey": "Model \"{model}\" goes to a remote interface. Add its key under Interface settings (top left).",
+    "hint.via": "Forwarded by this machine to {url}", "hint.backup": "; falls back to {names} on failure",
+    "hint.batchRemote": ". Remote interfaces have no batch endpoint, so items are sent one by one and billed per item",
+    "hint.localDisabled": "The local model is not enabled on this machine. Pick another interface, or install local Laya and restart.",
+    "hint.localExited": "Local Laya is not running; the error is in the launcher window. Remote interfaces still work.",
+    "hint.loading": "The model is still loading. The first start downloads it; progress is in the launcher window, and this changes to \"ready\" when done.",
+    "hint.autoRoute": "Model left empty: Laya routes automatically, English text to english and other languages to multilingual (a model not loaded yet is downloaded on first use).",
+    "hint.notLaya": "\"{model}\" is not a Laya model name; the local service ignores it and routes automatically. To call Jev, switch the interface to Auto or a remote one.",
+    "hint.notLoaded": "\"{name}\" is not loaded yet; the first call downloads and loads it, which can take a few minutes.",
+    "hint.addr": "Service address {url}",
+    "t.auto": "Auto (recommended)", "t.local": "Local Laya", "t.noKey": " (no key)",
+    "set.note": "Keys are stored in config.json on this machine and added by the local launcher; they never appear in requests sent by the browser.",
+    "set.localNoKey": "Local Laya needs no key.",
+    "set.autoLocal": "The current model is handled by local Laya, so no key is needed. To manage a remote interface's key, select that interface first.",
+    "set.autoUses": "Auto currently uses this interface.",
+    "set.name": "Name", "set.url": "Base URL", "set.urlPh": "https://example.com (without /v1/systemone)",
+    "set.model": "Default model", "set.modelPh": "e.g. jev-latest; may be empty", "set.key": "API key",
+    "set.keyEnv": "from the environment variable {name}",
+    "set.keyPh": "Paste the API key", "set.keyPhEdit": "Paste the new key", "set.keyOptionalPh": "Paste the API key (leave empty if this interface needs none)",
+    "set.addKey": "Add key", "set.editKey": "Change", "set.delKey": "Delete", "set.saveKey": "Save key", "set.cancel": "Cancel",
+    "set.confirmDelKey": "Confirm: delete the key", "set.keyEmpty": "Paste a key first",
+    "set.keyAdded": "Key added", "set.keyChanged": "Key changed", "set.keyDeleted": "Key deleted",
+    "set.saveSettings": "Save settings", "set.delProv": "Delete this interface", "set.confirmDelProv": "Confirm: delete \"{name}\"",
+    "set.provAdded": "Interface added", "set.provDeleted": "Interface deleted",
+    "set.addTitle": "Add a third-party interface",
+    "set.addNote": "For any service that offers /v1/systemone. Enter only the host or path prefix; the workbench appends /v1/systemone itself.",
+    "set.addBtn": "Add interface", "t.add": "+ Add a third-party interface…", "s.keyOptional": "no key",
+    "set.test": "Test connection", "set.saved": "Saved", "set.saveFail": "Save failed", "set.testing": "Testing…",
+    "set.connFail": "Connection failed: {msg}", "set.connOk": "Connected; {n} models available", "set.testFail": "Test failed: {msg}",
+    "set.rule": "How Auto works: when the model is multilingual / english / typed-decisions (or empty), local Laya is used. Any other model name (such as jev-latest) goes to the first remote interface in auto_order (config.json) that has a key; if it is unreachable or refuses the request, the next one is tried.",
+    "models.partial": "Some interfaces returned no model list — {errs}", "models.ok": "Refreshed: {n} models", "models.fail": "Refresh failed: {msg}",
+    "sn.noBatch": "\"{name}\" has no batch endpoint; the workbench calls /v1/systemone once per item. This is the first item; replace state for the others.",
+    "sn.curl1": "1) Save the request as request.json (UTF-8); the \"Download request.json\" button above does this",
+    "sn.curl2": "2) Run this in the same folder (curl.exe in Windows PowerShell, curl on Linux)",
+    "sn.key": "YOUR_API_KEY", "sn.noProxy": "bypass proxies for local requests",
+    "sn.js": "For Node.js 18+ or a backend service; never put the key in browser code",
+    "v.wrap": " ({note})", "v.latest": "up to date", "v.upgraded": "upgraded automatically from {from} at this start",
+    "v.available": "version {v} is available; automatic upgrades are off", "v.failed": "the automatic upgrade to {v} failed, see the launcher window",
+    "v.offline": "could not check for updates this time", "v.rolledBack": "version {v} failed to start and was rolled back",
+    "v.skipped": "skipping {v}, which failed to start", "v.running": "version {v} is available; restart the workbench to upgrade",
+    "v.model": "model revision {sha}", "v.modelUpdated": "updated at this start", "v.modelPending": "model files have an update; it downloads when the model loads",
+    "sep.list": ", ", "sep.colon": ": ", "sep.semi": "; ", "sep.gap": ", ", "r.failAt": "Request to {name} failed"
+  }
+};
+/* 浏览器里保存设置用的键名沿用项目的旧名字，改名后原来的语言、历史记录等设置还在 */
+const LANG_KEY = "laya-workbench-lang";
+let LANG = "zh", LANG_CHOSEN = false;
+try {
+  const saved = localStorage.getItem(LANG_KEY);
+  if (saved === "zh" || saved === "en") { LANG = saved; LANG_CHOSEN = true; }
+  else LANG = /^zh/i.test(navigator.language || "") ? "zh" : "en";
+} catch (e) { LANG = /^zh/i.test(navigator.language || "") ? "zh" : "en"; }
+function t(key, vars) {
+  let text = I18N[LANG][key];
+  if (text == null) text = I18N.zh[key] != null ? I18N.zh[key] : key;
+  if (vars) for (const name in vars) text = text.split("{" + name + "}").join(String(vars[name]));
+  return text;
+}
+function applyStatic() {
+  document.documentElement.lang = LANG === "zh" ? "zh-CN" : "en";
+  document.title = t("title");
+  document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll("[data-i18n-ph]").forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
+  document.querySelectorAll("[data-i18n-aria]").forEach(el => { el.setAttribute("aria-label", t(el.dataset.i18nAria)); });
+  for (const b of $("#lang").children) b.setAttribute("aria-pressed", String(b.dataset.lang === LANG));
+}
+
+/* ---------- 小工具 ---------- */
+function $(sel, root) { return (root || document).querySelector(sel); }
+function h(tag, attrs) {
+  const el = document.createElement(tag);
+  for (const key in (attrs || {})) {
+    const value = attrs[key];
+    if (value == null || value === false) continue;
+    if (key === "class") el.className = value;
+    else if (key === "text") el.textContent = value;
+    else if (key.slice(0, 2) === "on") el.addEventListener(key.slice(2), value);
+    else if (key === "value") el.value = value;
+    else el.setAttribute(key, value === true ? "" : value);
+  }
+  for (let i = 2; i < arguments.length; i++) {
+    const kid = arguments[i];
+    if (kid == null || kid === false) continue;
+    el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  }
+  return el;
+}
+const pct = v => (Number(v) * 100).toFixed(1) + "%";
+const pretty = obj => JSON.stringify(obj, null, 2);
+let uidSeq = 0;
+const uid = () => "q" + (++uidSeq);
+/* 所有发给工作台的请求都带上界面语言，服务端的报错会用同一种语言 */
+function api(path, options) {
+  options = options || {};
+  options.headers = Object.assign({ "X-WB-Lang": LANG }, options.headers || {});
+  return fetch(path, options);
+}
+
+function toast(text) {
+  const el = $("#toast");
+  el.textContent = text;
+  el.classList.add("on");
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => el.classList.remove("on"), 1800);
+}
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (e) {
+    const ta = h("textarea", { value: text });
+    document.body.append(ta);
+    ta.select();
+    try { document.execCommand("copy"); } catch (e2) { /* 复制不了就算了 */ }
+    ta.remove();
+  }
+  toast(t("toast.copied"));
+}
+function download(name, text) {
+  const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+  const a = h("a", { href: url, download: name });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+/* ---------- 状态 ---------- */
+const S = {
+  mode: "single",
+  stateTab: "text",
+  text: "",
+  json: "{\n  \n}",
+  messages: [{ role: "user", content: "" }],
+  batch: "",
+  questions: [],
+  target: "auto",
+  model: "multilingual",
+  modelOptions: null,
+  settingsOpen: false,
+  adding: false,       // 正在填写「添加第三方接口」
+  keyEdit: false,      // 正在修改密钥
+  confirm: null,       // "key" / "provider"：等待确认删除
+  setMsg: null,        // 设置区的提示 {cls, text}
+  setShown: "",        // 设置区当前显示的是哪个接口
+  minConf: "",
+  maxLen: "",
+  tab: "result",
+  snippet: "curl",
+  last: null,
+  running: false,
+  waiting: false,      // 点了运行，但本地模型还在加载：加载完自动运行
+  debug: [],
+  history: [],
+  status: undefined,   // undefined = 还在连接，null = 连接失败
+  view: "text",        // text / vision / train
+  examples: [],
+  exampleFile: null,   // 当前内容来自哪个示例文件
+  exampleSnap: "",     // 载入示例时的内容，用来判断有没有被改过
+  note: "",
+};
+const HISTORY_KEY = "laya-workbench-history";
+try { S.history = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]") || []; } catch (e) { S.history = []; }
+const TARGET_KEY = "laya-workbench-target";
+try { S.target = localStorage.getItem(TARGET_KEY) || "auto"; } catch (e) { S.target = "auto"; }
+const VIEW_KEY = "laya-workbench-view";
+try { const v = localStorage.getItem(VIEW_KEY); if (v === "vision" || v === "train") S.view = v; } catch (e) { /* 用默认视图 */ }
+function applyView() {
+  document.querySelectorAll("[data-view]").forEach(el => {
+    if (el.parentElement && el.parentElement.id === "view") return;
+    el.hidden = !el.dataset.view.split(" ").includes(S.view);
+  });
+  for (const b of $("#view").children) b.setAttribute("aria-pressed", String(b.dataset.view === S.view));
+  $("#mode-field").hidden = S.view !== "text";
+  if (window.WBV) window.WBV.onView();
+}
+function setView(view) {
+  S.view = ["vision", "train"].includes(view) ? view : "text";
+  try { localStorage.setItem(VIEW_KEY, S.view); } catch (e) { /* 记不住也没关系 */ }
+  applyView();
+}
+function saveHistory() {
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(S.history.slice(0, 30))); } catch (e) { /* 存不了不影响使用 */ }
+}
+
+/* ---------- 接口选择 ---------- */
+const LAYA_NAMES = ["english", "multilingual", "typed-decisions", "en", "laya", "default", "multi", "ml",
+  "laya-multilingual", "typed", "typed_decisions", "laya-typed-decisions", "decisions"];
+const LOCAL = { id: "local", local: true };
+function pname(p) {
+  if (!p) return "";
+  if (p.local) return t("t.local");
+  return LANG === "en" ? (p.name_en || p.name) : p.name;
+}
+function isLayaModel(model) {
+  const name = String(model || "").trim().toLowerCase();
+  return !name || LAYA_NAMES.includes(name) || name.startsWith("convaiinnovations/");
+}
+function usable(p) { return !!p && (p.local || p.has_key || p.key_optional); }
+function providers() { return (S.status && S.status.providers) || []; }
+function providerById(id) { return providers().find(p => p.id === id); }
+/* 当前这份请求实际会发给谁。规则和启动器里的 resolve() 一致。 */
+function resolved() {
+  if (S.target === "local") return LOCAL;
+  if (S.target !== "auto") return providerById(S.target) || LOCAL;
+  if (isLayaModel(S.model)) return LOCAL;
+  const order = ((S.status && S.status.auto_order) || []).map(providerById).filter(Boolean);
+  return order.find(usable) || order[0] || LOCAL;
+}
+function autoBackups() {
+  if (S.target !== "auto" || isLayaModel(S.model)) return [];
+  const order = ((S.status && S.status.auto_order) || []).map(providerById).filter(p => p && usable(p));
+  return order.slice(1);
+}
+function fitModelToTarget() {
+  if (S.target === "local" && !isLayaModel(S.model)) S.model = "multilingual";
+  else if (S.target !== "auto" && S.target !== "local" && isLayaModel(S.model)) {
+    const p = providerById(S.target);
+    S.model = (p && p.default_model) || "jev-latest";
+  }
+}
+function autoLabel() {
+  return S.target === "auto" ? t("t.auto") + " → " + pname(resolved()) : t("t.auto");
+}
+function renderTargets() {
+  const sel = $("#target");
+  const options = [["auto", autoLabel()], ["local", t("t.local")]]
+    .concat(providers().map(p => [p.id, pname(p) + (usable(p) ? "" : t("t.noKey"))]));
+  if (!options.some(o => o[0] === S.target)) S.target = "auto";
+  options.push(["__add", t("t.add")]);
+  sel.textContent = "";
+  options.forEach(o => sel.append(h("option", { value: o[0] }, o[1])));
+  sel.value = S.adding ? "__add" : S.target;
+}
+function renderModelOptions() {
+  const list = $("#model-list");
+  list.textContent = "";
+  let items = S.modelOptions;
+  if (!items) {
+    items = [];
+    if (S.target === "local" || S.target === "auto") items.push("multilingual", "english", "typed-decisions");
+    if (S.target !== "local") items.push("jev-latest");
+  }
+  items.forEach(id => list.append(h("option", { value: id })));
+}
+async function refreshModels() {
+  try {
+    const resp = await api("/_wb/models?target=" + encodeURIComponent(S.target), { cache: "no-store" });
+    const data = await resp.json();
+    S.modelOptions = (data.models || []).map(m => m.id);
+    renderModelOptions();
+    const errs = Object.keys(data.errors || {}).map(id => (pname(providerById(id)) || id) + t("sep.colon") + data.errors[id]);
+    toast(errs.length ? t("models.partial", { errs: errs.join(t("sep.semi")) }) : t("models.ok", { n: S.modelOptions.length }));
+  } catch (e) { toast(t("models.fail", { msg: e.message })); }
+}
+/* 设置区只显示「接口」里选中的那一个接口 */
+function settingsProvider() {
+  if (S.adding || S.target === "local") return null;
+  if (S.target === "auto") { const d = resolved(); return d.local ? null : d; }
+  return providerById(S.target) || null;
+}
+function settingsKey() {
+  if (S.adding) return "__add";
+  const p = settingsProvider();
+  return p ? p.id : "none:" + S.target;
+}
+function resetSettingsUi() { S.keyEdit = false; S.confirm = null; S.setMsg = null; }
+async function postSettings(body) {
+  const resp = await api("/_wb/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.detail || t("set.saveFail"));
+  S.status = data; S.modelOptions = null;
+  return data;
+}
+function settingsDone(text) {
+  S.keyEdit = false; S.confirm = null;
+  S.setShown = settingsKey();        // 接口可能刚换过（新建 / 删除），别让 refresh 把提示清掉
+  S.setMsg = { cls: "ok", text: text };
+  renderTargets(); renderModelOptions(); renderStatus(); refresh(); renderSettings();
+}
+function settingsFail(e) { S.setMsg = { cls: "bad", text: e.message || String(e) }; renderSettings(); }
+function setTarget(id) {
+  S.target = id;
+  try { localStorage.setItem(TARGET_KEY, S.target); } catch (err) { /* 记不住也没关系 */ }
+  S.modelOptions = null;
+  fitModelToTarget(); $("#model").value = S.model;
+}
+function renderAddForm(box) {
+  const name = h("input", { class: "plain", id: "add-name", autocomplete: "off" });
+  const base = h("input", { id: "add-url", placeholder: t("set.urlPh"), spellcheck: "false", autocomplete: "off" });
+  const key = h("input", { id: "add-key", type: "password", autocomplete: "off", placeholder: t("set.keyOptionalPh") });
+  const model = h("input", { id: "add-model", placeholder: t("set.modelPh"), spellcheck: "false", autocomplete: "off" });
+  const add = async () => {
+    try {
+      const data = await postSettings({ action: "add", name: name.value, base_url: base.value, api_key: key.value, default_model: model.value });
+      S.adding = false; S.settingsOpen = true;
+      setTarget(data.created);
+      settingsDone(t("set.provAdded"));
+    } catch (e) { settingsFail(e); }
+  };
+  const cancel = () => { S.adding = false; resetSettingsUi(); renderTargets(); renderSettings(); refresh(); };
+  box.append(h("h3", {}, t("set.addTitle")), h("p", {}, t("set.addNote")));
+  box.append(h("div", { class: "set-grid" },
+    h("label", { for: "add-name" }, t("set.name")), name,
+    h("label", { for: "add-url" }, t("set.url")), base,
+    h("label", { for: "add-key" }, t("set.key")), key,
+    h("label", { for: "add-model" }, t("set.model")), model));
+  box.append(h("div", { class: "set-actions" },
+    h("button", { class: "btn small primary", type: "button", onclick: add }, t("set.addBtn")),
+    h("button", { class: "btn small", type: "button", onclick: cancel }, t("set.cancel"))));
+  if (S.setMsg) box.append(h("div", { class: "prov-msg " + (S.setMsg.cls || "") }, S.setMsg.text));
+}
+function renderSettings() {
+  const box = $("#settings");
+  box.hidden = !S.settingsOpen && !S.adding;
+  S.setShown = settingsKey();
+  if (box.hidden) return;
+  box.textContent = "";
+  if (S.adding) return renderAddForm(box);
+  const p = settingsProvider();
+  if (!p) {
+    box.append(h("p", { style: "margin:0" }, S.target === "local" ? t("set.localNoKey") : t("set.autoLocal")));
+    if (S.target === "auto") box.append(h("p", { class: "fine" }, t("set.rule")));
+    return;
+  }
+  const say = (cls, text) => { S.setMsg = { cls: cls, text: text }; renderSettings(); };
+  box.append(h("h3", {}, pname(p)));
+  if (S.target === "auto") box.append(h("p", {}, t("set.autoUses")));
+
+  const name = p.custom ? h("input", { class: "plain", id: "set-name", value: p.name, autocomplete: "off" }) : null;
+  const base = h("input", { id: "set-url", value: p.base_url, placeholder: t("set.urlPh"), spellcheck: "false", autocomplete: "off" });
+  const model = h("input", { id: "set-model", value: p.default_model || "", placeholder: t("set.modelPh"), spellcheck: "false", autocomplete: "off" });
+
+  /* 密钥：没有 → 添加；已有 → 修改 / 删除 */
+  const keyCell = h("div", { class: "keyline" });
+  let keyInput = null;
+  const saveKey = async () => {
+    if (!keyInput.value.trim()) return say("bad", t("set.keyEmpty"));
+    const had = p.has_key && !p.key_env;
+    try { await postSettings({ action: "save", provider: p.id, api_key: keyInput.value.trim() }); settingsDone(had ? t("set.keyChanged") : t("set.keyAdded")); }
+    catch (e) { settingsFail(e); }
+  };
+  const mask = "····" + (p.key_hint || "");
+  if (p.key_env) {
+    keyCell.append(h("span", { class: "mask" }, mask), h("span", { class: "none" }, t("set.keyEnv", { name: p.key_env })));
+  } else if (p.has_key && S.confirm === "key") {
+    keyCell.append(h("span", { class: "mask" }, mask),
+      h("button", { class: "btn small danger", type: "button", onclick: async () => {
+        try { await postSettings({ action: "delete_key", provider: p.id }); settingsDone(t("set.keyDeleted")); } catch (e) { settingsFail(e); }
+      } }, t("set.confirmDelKey")),
+      h("button", { class: "btn small", type: "button", onclick: () => { S.confirm = null; renderSettings(); } }, t("set.cancel")));
+  } else if (p.has_key && !S.keyEdit) {
+    keyCell.append(h("span", { class: "mask" }, mask),
+      h("button", { class: "btn small", type: "button", onclick: () => { S.keyEdit = true; S.confirm = null; S.setMsg = null; renderSettings(); const el = $("#set-key"); if (el) el.focus(); } }, t("set.editKey")),
+      h("button", { class: "btn small danger", type: "button", onclick: () => { S.confirm = "key"; S.setMsg = null; renderSettings(); } }, t("set.delKey")));
+  } else {
+    keyInput = h("input", { id: "set-key", type: "password", autocomplete: "off",
+      placeholder: p.has_key ? t("set.keyPhEdit") : (p.key_optional ? t("set.keyOptionalPh") : t("set.keyPh")),
+      onkeydown: e => { if (e.key === "Enter") saveKey(); } });
+    keyCell.append(keyInput, h("button", { class: "btn small primary", type: "button", onclick: saveKey }, p.has_key ? t("set.saveKey") : t("set.addKey")));
+    if (p.has_key) keyCell.append(h("button", { class: "btn small", type: "button", onclick: () => { S.keyEdit = false; renderSettings(); } }, t("set.cancel")));
+  }
+
+  const grid = h("div", { class: "set-grid" });
+  if (name) grid.append(h("label", { for: "set-name" }, t("set.name")), name);
+  grid.append(h("label", { for: "set-url" }, t("set.url")), base,
+    h("label", { for: "set-model" }, t("set.model")), model,
+    h("label", { for: keyInput ? "set-key" : null }, t("set.key")), keyCell);
+  box.append(grid);
+
+  const saveSettings = async () => {
+    const body = { action: "save", provider: p.id, base_url: base.value, default_model: model.value };
+    if (name) body.name = name.value;
+    if (keyInput && keyInput.value.trim()) body.api_key = keyInput.value.trim();
+    try { await postSettings(body); settingsDone(t("set.saved")); } catch (e) { settingsFail(e); }
+  };
+  const test = async () => {
+    say("", t("set.testing"));
+    try {
+      const resp = await api("/_wb/models?target=" + encodeURIComponent(p.id), { cache: "no-store" });
+      const data = await resp.json();
+      if (data.errors && data.errors[p.id]) return say("bad", t("set.connFail", { msg: data.errors[p.id] }));
+      const ids = (data.models || []).map(m => m.id);
+      say("ok", t("set.connOk", { n: ids.length }) + (ids.length ? t("sep.colon") + ids.slice(0, 8).join(t("sep.list")) + (ids.length > 8 ? " …" : "") : ""));
+    } catch (e) { say("bad", t("set.testFail", { msg: e.message })); }
+  };
+  const actions = h("div", { class: "set-actions" },
+    h("button", { class: "btn small", type: "button", onclick: saveSettings }, t("set.saveSettings")),
+    h("button", { class: "btn small", type: "button", onclick: test }, t("set.test")));
+  if (p.custom) {
+    actions.append(h("span", { class: "spacer" }));
+    if (S.confirm === "provider") {
+      actions.append(h("button", { class: "btn small danger", type: "button", onclick: async () => {
+          try { await postSettings({ action: "delete", provider: p.id }); setTarget("auto"); settingsDone(t("set.provDeleted")); } catch (e) { settingsFail(e); }
+        } }, t("set.confirmDelProv", { name: pname(p) })),
+        h("button", { class: "btn small", type: "button", onclick: () => { S.confirm = null; renderSettings(); } }, t("set.cancel")));
+    } else {
+      actions.append(h("button", { class: "btn small danger", type: "button", onclick: () => { S.confirm = "provider"; S.setMsg = null; renderSettings(); } }, t("set.delProv")));
+    }
+  }
+  box.append(actions);
+  box.append(h("div", { class: "prov-msg " + ((S.setMsg && S.setMsg.cls) || "") }, (S.setMsg && S.setMsg.text) || ""));
+  box.append(h("p", { class: "fine" }, t("set.note")));
+  if (S.target === "auto") box.append(h("p", { class: "fine" }, t("set.rule")));
+}
+
+/* ---------- 请求体 <-> 界面 ---------- */
+function questionFromSpec(id, spec) {
+  spec = spec && typeof spec === "object" ? spec : {};
+  const type = ["noul", "choice", "score"].includes(spec.type) ? spec.type : "noul";
+  const q = { uid: uid(), id: id, type: type, instructions: String(spec.instructions || ""), options: [], levels: [], extra: {} };
+  for (const key in spec) {
+    if (key === "type" || key === "instructions") continue;
+    if (key === "criteria" && type === "choice" && spec.criteria && typeof spec.criteria === "object") {
+      if (Array.isArray(spec.criteria)) q.options = spec.criteria.map(k => ({ key: String(k), desc: "" }));
+      else q.options = Object.keys(spec.criteria).map(k => ({ key: k, desc: String(spec.criteria[k] == null ? "" : spec.criteria[k]) }));
+    } else if (key === "criteria" && type === "score" && Array.isArray(spec.criteria)) {
+      q.levels = spec.criteria.map(v => typeof v === "string" ? v : JSON.stringify(v));
+    } else {
+      q.extra[key] = spec[key];
+    }
+  }
+  return q;
+}
+function newQuestion(type) {
+  const taken = new Set(S.questions.map(q => q.id));
+  let n = S.questions.length + 1;
+  while (taken.has("q" + n)) n++;
+  const q = { uid: uid(), id: "q" + n, type: type, instructions: "", options: [], levels: [], extra: {} };
+  if (type === "choice") q.options = [{ key: "a", desc: "" }, { key: "b", desc: "" }];
+  if (type === "score") q.levels = ["", "", ""];
+  return q;
+}
+function isMessageList(value) {
+  return Array.isArray(value) && value.length > 0 &&
+    value.every(m => m && typeof m === "object" && typeof m.content === "string" && typeof m.role === "string");
+}
+function loadRequest(body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error(t("e.top"));
+  if (!body.questions || typeof body.questions !== "object" || Array.isArray(body.questions)) throw new Error(t("e.noQ"));
+  if (Array.isArray(body.states)) {
+    S.mode = "batch";
+    S.batch = body.states.map(s => typeof s === "string" ? s.replace(/\r?\n/g, " ") : JSON.stringify(s)).join("\n");
+  } else {
+    S.mode = "single";
+    const st = body.state;
+    if (typeof st === "string") { S.stateTab = "text"; S.text = st; }
+    else if (isMessageList(st)) { S.stateTab = "messages"; S.messages = st.map(m => ({ role: m.role, content: m.content })); }
+    else if (st != null) { S.stateTab = "json"; S.json = pretty(st); }
+    else { S.stateTab = "text"; S.text = ""; }
+  }
+  S.questions = Object.keys(body.questions).map(id => questionFromSpec(id, body.questions[id]));
+  S.model = body.model == null ? "" : String(body.model);
+  fitModelToTarget();
+  S.minConf = body.min_confidence == null ? "" : String(body.min_confidence);
+  S.maxLen = body.max_len == null ? "" : String(body.max_len);
+  S.exampleFile = null; S.exampleSnap = "";
+  renderAll();
+}
+function resetAll() {
+  S.mode = "single"; S.stateTab = "text"; S.text = ""; S.json = "{\n  \n}";
+  S.messages = [{ role: "user", content: "" }]; S.batch = ""; S.questions = [];
+  S.minConf = ""; S.maxLen = ""; S.last = null;
+  S.exampleFile = null; S.exampleSnap = ""; S.note = "";
+  renderAll();
+}
+
+function batchStates() {
+  return S.batch.split(/\r?\n/).map(s => s.trim()).filter(Boolean).map(line => {
+    if (line[0] === "{" || line[0] === "[") { try { return JSON.parse(line); } catch (e) { return line; } }
+    return line;
+  });
+}
+function buildRequest() {
+  const problems = [];
+  const body = {};
+  const dest = resolved();
+  if (S.model.trim()) body.model = S.model.trim();
+  else if (!dest.local) body.model = dest.default_model || "jev-latest";
+  if (!usable(dest)) problems.push(t("p.key", { name: pname(dest) }));
+  if (dest.local && S.status && !S.status.ready) {
+    if (S.status.service === "disabled") problems.push(t("p.localDisabled"));
+    else if (S.status.service === "exited") problems.push(t("p.localExited"));
+  }
+
+  if (S.mode === "batch") {
+    const states = batchStates();
+    if (!states.length) problems.push(t("p.batchEmpty"));
+    else if (states.length > 64) problems.push(t("p.batchMax", { n: states.length }));
+    body.states = states;
+  } else if (S.stateTab === "text") {
+    if (!S.text.trim()) problems.push(t("p.stateEmpty"));
+    body.state = S.text;
+  } else if (S.stateTab === "json") {
+    try {
+      body.state = JSON.parse(S.json);
+      if (body.state == null || (typeof body.state === "object" && !Object.keys(body.state).length)) problems.push(t("p.stateEmpty"));
+    } catch (e) {
+      problems.push(t("p.badJson", { msg: e.message }));
+      body.state = S.json;
+    }
+  } else {
+    const msgs = S.messages.filter(m => m.content.trim()).map(m => ({ role: m.role, content: m.content }));
+    if (!msgs.length) problems.push(t("p.msgEmpty"));
+    body.state = msgs;
+  }
+
+  body.questions = {};
+  const seen = new Set();
+  if (!S.questions.length) problems.push(t("p.noQuestions"));
+  S.questions.forEach((q, i) => {
+    const id = q.id.trim();
+    const name = id || t("p.nth", { n: i + 1 });
+    if (!id) problems.push(t("p.noId", { n: i + 1 }));
+    else if (seen.has(id)) problems.push(t("p.dupId", { id: id }));
+    seen.add(id);
+    if (!q.instructions.trim()) problems.push(t("p.noText", { name: name }));
+    const spec = Object.assign({ type: q.type, instructions: q.instructions }, q.extra);
+    if (q.type === "choice") {
+      const keys = q.options.map(o => o.key.trim());
+      if (keys.filter(Boolean).length < 2) problems.push(t("p.opt2", { name: name }));
+      else if (keys.some(k => !k)) problems.push(t("p.optBlank", { name: name }));
+      else if (new Set(keys).size !== keys.length) problems.push(t("p.optDup", { name: name }));
+      spec.criteria = {};
+      q.options.forEach(o => { if (o.key.trim()) spec.criteria[o.key.trim()] = o.desc; });
+    } else if (q.type === "score") {
+      if (q.levels.length < 2) problems.push(t("p.lvl2", { name: name }));
+      else if (q.levels.some(v => !v.trim())) problems.push(t("p.lvlBlank", { name: name }));
+      spec.criteria = q.levels.slice();
+    }
+    body.questions[id || "q" + (i + 1)] = spec;
+  });
+
+  if (S.minConf.trim()) {
+    const v = Number(S.minConf);
+    if (!isFinite(v) || v < 0 || v > 1) problems.push(t("p.minConf"));
+    else if (dest.local) body.min_confidence = v;
+  }
+  if (S.maxLen.trim()) {
+    const v = Number(S.maxLen);
+    if (!Number.isInteger(v) || v <= 0) problems.push(t("p.maxLen"));
+    else if (dest.local) body.max_len = v;
+  }
+  return { endpoint: S.mode === "batch" ? "/v1/systemone/batch" : "/v1/systemone", body: body, problems: problems, dest: dest };
+}
+function editorSnapshot() {
+  const body = buildRequest().body;
+  return JSON.stringify([body.states !== undefined ? body.states : body.state, body.questions]);
+}
+
+/* ---------- 渲染：素材 ---------- */
+function renderState() {
+  const box = $("#state-body");
+  box.textContent = "";
+  $("#state-tabs").hidden = S.mode === "batch";
+  $("#state-title").textContent = S.mode === "batch" ? t("state.titleBatch") : t("state.title");
+  for (const b of $("#state-tabs").children) b.setAttribute("aria-pressed", String(b.dataset.tab === S.stateTab));
+
+  if (S.mode === "batch") {
+    box.append(h("textarea", { id: "state-batch", value: S.batch, placeholder: t("state.phBatch"), spellcheck: "false",
+      oninput: e => { S.batch = e.target.value; refresh(); } }));
+  } else if (S.stateTab === "text") {
+    box.append(h("textarea", { id: "state-text", value: S.text, placeholder: t("state.phText"),
+      oninput: e => { S.text = e.target.value; refresh(); } }));
+  } else if (S.stateTab === "json") {
+    box.append(h("textarea", { id: "state-json", value: S.json, spellcheck: "false", placeholder: '{"subject": "…", "body": "…"}',
+      oninput: e => { S.json = e.target.value; refresh(); } }));
+  } else {
+    S.messages.forEach((m, i) => {
+      const role = h("select", { "aria-label": t("msg.role"), onchange: e => { m.role = e.target.value; refresh(); } },
+        h("option", { value: "user" }, "user"), h("option", { value: "assistant" }, "assistant"), h("option", { value: "system" }, "system"));
+      if (!["user", "assistant", "system"].includes(m.role)) role.append(h("option", { value: m.role }, m.role));
+      role.value = m.role;
+      box.append(h("div", { class: "msg" }, role,
+        h("textarea", { rows: String(Math.min(8, Math.max(2, Math.ceil(m.content.length / (LANG === "zh" ? 26 : 52))))), value: m.content, placeholder: t("msg.ph"),
+          oninput: e => { m.content = e.target.value; refresh(); } }),
+        h("button", { class: "x", type: "button", title: t("msg.del"), "aria-label": t("msg.del"),
+          onclick: () => { S.messages.splice(i, 1); if (!S.messages.length) S.messages.push({ role: "user", content: "" }); renderState(); refresh(); } }, "×")));
+    });
+    box.append(h("button", { class: "btn small", type: "button", onclick: () => {
+      const lastRole = S.messages.length ? S.messages[S.messages.length - 1].role : "assistant";
+      S.messages.push({ role: lastRole === "user" ? "assistant" : "user", content: "" });
+      renderState(); refresh();
+    } }, t("msg.add")));
+  }
+}
+
+/* ---------- 渲染：题目 ---------- */
+function renderQuestions() {
+  const box = $("#questions");
+  box.textContent = "";
+  if (!S.questions.length) {
+    box.append(h("div", { class: "empty" }, t("q.empty")));
+    return;
+  }
+  S.questions.forEach((q, qi) => {
+    const card = h("div", { class: "q" });
+    card.append(h("div", { class: "q-top" },
+      h("span", { class: "badge " + q.type }, t("type." + q.type)),
+      h("input", { value: q.id, placeholder: t("q.idPh"), "aria-label": t("q.idAria"), spellcheck: "false",
+        oninput: e => { q.id = e.target.value; refresh(); } }),
+      h("button", { class: "x", type: "button", title: t("q.del"), "aria-label": t("q.del"),
+        onclick: () => { S.questions.splice(qi, 1); renderQuestions(); refresh(); } }, "×")));
+    card.append(h("textarea", { rows: "2", value: q.instructions, "aria-label": t("q.aria"),
+      placeholder: q.type === "noul" ? t("q.phNoul") : q.type === "choice" ? t("q.phChoice") : t("q.phScore"),
+      oninput: e => { q.instructions = e.target.value; refresh(); } }));
+
+    if (q.type === "choice") {
+      const opts = h("div", { class: "opts" });
+      q.options.forEach((o, oi) => {
+        opts.append(h("div", { class: "opt" },
+          h("input", { class: "key", value: o.key, placeholder: t("opt.key"), "aria-label": t("opt.keyAria"), spellcheck: "false", oninput: e => { o.key = e.target.value; refresh(); } }),
+          h("input", { value: o.desc, placeholder: t("opt.desc"), "aria-label": t("opt.descAria"), oninput: e => { o.desc = e.target.value; refresh(); } }),
+          h("button", { class: "x", type: "button", title: t("opt.del"), "aria-label": t("opt.del"), onclick: () => { q.options.splice(oi, 1); renderQuestions(); refresh(); } }, "×")));
+      });
+      opts.append(h("button", { class: "btn small", type: "button", onclick: () => { q.options.push({ key: "", desc: "" }); renderQuestions(); refresh(); } }, t("opt.add")));
+      card.append(opts);
+    } else if (q.type === "score") {
+      const opts = h("div", { class: "opts" });
+      q.levels.forEach((text, li) => {
+        opts.append(h("div", { class: "opt level" },
+          h("span", { class: "idx" }, String(li)),
+          h("input", { value: text, placeholder: li === 0 ? t("lvl.ph0") : t("lvl.ph"), "aria-label": t("lvl.aria", { n: li }), oninput: e => { q.levels[li] = e.target.value; refresh(); } }),
+          h("button", { class: "x", type: "button", title: t("lvl.del"), "aria-label": t("lvl.del"), onclick: () => { q.levels.splice(li, 1); renderQuestions(); refresh(); } }, "×")));
+      });
+      opts.append(h("button", { class: "btn small", type: "button", onclick: () => { q.levels.push(""); renderQuestions(); refresh(); } }, t("lvl.add")));
+      card.append(opts);
+    }
+    box.append(card);
+  });
+}
+
+/* ---------- 渲染：结果区 ---------- */
+function barRow(name, value, win, half) {
+  const fill = h("i");
+  fill.style.width = Math.max(0, Math.min(100, Number(value) * 100)).toFixed(1) + "%";
+  return h("div", { class: "row" + (win ? " win" : "") },
+    h("span", { class: "name", title: name }, name),
+    h("span", { class: "bar" + (half ? " half" : "") }, fill),
+    h("span", { class: "pct" }, pct(value)));
+}
+function confLine(a) {
+  const parts = [];
+  if (a.answer_confidence != null) parts.push(t("r.conf", { v: Number(a.answer_confidence).toFixed(3) }));
+  if (a.abstention) parts.push(t("r.gate", { v: ["passed", "abstained", "unevaluated"].includes(a.abstention) ? t("gate." + a.abstention) : a.abstention }));
+  return parts.length ? h("div", { class: "conf" }, parts.join(t("sep.gap"))) : null;
+}
+function answerCard(qid, a, spec) {
+  const type = a && a.type ? a.type : (a && "choice" in a ? "choice" : a && "score" in a ? "score" : "noul");
+  const card = h("div", { class: "ans" + (a.low_confidence ? " low" : "") });
+  card.append(h("div", { class: "ans-head" },
+    h("span", { class: "badge " + type }, ["noul", "choice", "score"].includes(type) ? t("type." + type) : type), h("code", {}, qid),
+    a.low_confidence ? h("span", { class: "flag" }, t("r.lowConf")) : null));
+  if (spec && spec.instructions) card.append(h("div", { class: "ans-q" }, spec.instructions));
+
+  if (type === "choice") {
+    const crit = spec && spec.criteria && !Array.isArray(spec.criteria) ? spec.criteria : {};
+    card.append(h("div", { class: "verdict" }, h("strong", {}, String(a.choice)), crit[a.choice] ? h("span", {}, crit[a.choice]) : null));
+    const probs = a.probabilities || {};
+    Object.keys(probs).forEach(k => card.append(barRow(k, probs[k], k === a.choice)));
+  } else if (type === "score") {
+    const probs = a.probabilities || {};
+    const keys = Object.keys(probs);
+    const max = Math.max(1, keys.length - 1);
+    const nearest = String(Math.round(Number(a.score)));
+    const legend = a.legend || {};
+    card.append(h("div", { class: "verdict" }, h("strong", {}, Number(a.score).toFixed(2)),
+      h("span", {}, "/ " + max + (legend[nearest] ? t("sep.gap") + t("r.nearest", { text: legend[nearest] }) : ""))));
+    keys.forEach(k => card.append(barRow(k + "  " + (legend[k] || ""), probs[k], k === nearest)));
+  } else {
+    const yes = Number(a.noul) >= 0.5;
+    card.append(h("div", { class: "verdict" }, h("strong", {}, yes ? t("r.yes") : t("r.no")), h("span", {}, t("r.yesProb", { p: pct(a.noul) }))));
+    card.append(barRow(t("r.yes"), a.noul, yes, true));
+  }
+  const conf = confLine(a);
+  if (conf) card.append(conf);
+  return card;
+}
+function runProviderName(run) {
+  if (!run.providerId) return "";
+  return run.providerId === "local" ? t("t.local") : (pname(providerById(run.providerId)) || run.providerId);
+}
+function runTrail(run) {
+  if (!run.tried || run.tried.length < 2) return "";
+  return run.tried.map((item, i) => {
+    const name = pname(providerById(item[0])) || item[0];
+    const failed = i < run.tried.length - 1 || !run.ok;
+    return failed ? t("trail.fail", { name: name, why: item[1] === "0" ? t("trail.unreach") : "HTTP " + item[1] }) : t("trail.ok", { name: name });
+  }).join(" → ");
+}
+function metaLine(run, result) {
+  const meta = h("div", { class: "meta" });
+  const name = runProviderName(run);
+  if (name) meta.append(h("span", {}, t("m.iface", { v: name })));
+  if (result && result.model) meta.append(h("span", {}, t("m.model", { v: result.model })));
+  if (run.inferMs != null) meta.append(h("span", {}, t("m.infer", { v: Number(run.inferMs).toFixed(1) })));
+  meta.append(h("span", {}, t("m.round", { v: Math.round(run.ms) })));
+  const usage = result && (result.usage || result.total_usage);
+  if (usage && usage.input_tokens != null) meta.append(h("span", {}, t("m.tokens", { v: usage.input_tokens })));
+  if (result && result.routing && result.routing.reason) meta.append(h("span", { class: "reason" }, t("m.route", { v: result.routing.reason })));
+  const trail = runTrail(run);
+  if (trail) meta.append(h("span", { class: "reason" }, trail));
+  if (run.localGate) meta.append(h("span", { class: "reason" }, t("m.localGate")));
+  return meta;
+}
+function cellFor(a) {
+  if (!a) return h("td", { class: "cell" }, "-");
+  let text, small, yes = false;
+  if ("choice" in a) { text = String(a.choice); small = a.answer_confidence != null ? pct(a.answer_confidence) : ""; }
+  else if ("score" in a) { text = Number(a.score).toFixed(2); small = ""; }
+  else { yes = Number(a.noul) >= 0.5; text = yes ? t("r.yes") : t("r.no"); small = pct(a.noul); }
+  return h("td", { class: "cell" + (a.low_confidence ? " lowc" : yes ? " yes" : "") }, text, small ? h("small", {}, small) : null);
+}
+function renderResultTab(panel) {
+  const run = S.last;
+  if (S.running) { panel.append(h("div", { class: "placeholder" }, t("r.running"))); return; }
+  if (S.waiting) {
+    panel.append(h("div", { class: "placeholder" }, t("r.waiting1"), h("br"), h("small", {}, t("r.waiting2"))));
+    return;
+  }
+  if (!run) { panel.append(h("div", { class: "placeholder" }, t("r.empty"))); return; }
+  if (!run.ok) {
+    const b = run.body;
+    let detail = run.netError ? t("e.net", { msg: run.netError }) : (run.error || "");
+    if (b && typeof b === "object") {
+      const d = b.detail != null ? b.detail : (b.error && b.error.message != null ? b.error.message : (b.error != null ? b.error : b.message));
+      detail = d == null ? pretty(b) : (typeof d === "string" ? d : pretty(d));
+      if (b._failed_state_index != null) detail = t("r.failedItem", { n: b._failed_state_index + 1, msg: detail });
+    }
+    let tip = "";
+    if (run.remote) {
+      if (run.status === 401 || run.status === 403) tip = t("tip.remoteAuth");
+      else if (run.status === 404) tip = t("tip.remote404");
+      else if (run.status === 429) tip = t("tip.remote429");
+      else if (run.status === 502 || run.status === 0) tip = t("tip.remoteNet");
+    } else if (run.status === 503) tip = t("tip.local503");
+    else if (run.status === 401) tip = t("tip.local401");
+    else if (run.status === 500) tip = t("tip.local500");
+    if (!tip && (run.status === 422 || run.status === 400)) tip = t("tip.bad");
+    const name = runProviderName(run);
+    panel.append(h("div", { class: "errbox" }, (name ? t("r.failAt", { name: name }) : t("r.fail")) + (run.status ? " (HTTP " + run.status + ")" : "") + "\n" + detail + (tip ? "\n\n" + tip : "")));
+    const trail = runTrail(run);
+    if (trail) panel.append(h("div", { class: "conf" }, trail));
+    return;
+  }
+  const specs = run.request.questions || {};
+  if (Array.isArray(run.body.results)) {
+    panel.append(metaLine(run, run.body));
+    const qids = Object.keys(specs);
+    const table = h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, "#"), h("th", {}, t("th.material")),
+      ...qids.map(id => h("th", { title: specs[id].instructions || "" }, h("code", {}, id))))));
+    const tbody = h("tbody");
+    run.body.results.forEach((res, i) => {
+      const st = run.request.states[i];
+      tbody.append(h("tr", {}, h("td", {}, String(i + 1)),
+        h("td", { class: "state" }, typeof st === "string" ? st : JSON.stringify(st)),
+        ...qids.map(id => cellFor((res.answers || {})[id]))));
+    });
+    table.append(tbody);
+    panel.append(h("div", { class: "table-wrap" }, table));
+    panel.append(h("div", { class: "conf" }, t("r.batchNote")));
+  } else {
+    panel.append(metaLine(run, run.body));
+    const answers = run.body.answers || {};
+    if (!Object.keys(answers).length) panel.append(h("div", { class: "placeholder" }, t("r.noAnswers")));
+    Object.keys(answers).forEach(id => panel.append(answerCard(id, answers[id], specs[id])));
+  }
+}
+function snippetBody(req) {
+  if (req.dest.local || !req.endpoint.endsWith("/batch")) return req.body;
+  const body = Object.assign({}, req.body, { state: (req.body.states || [])[0] });
+  delete body.states;
+  return body;
+}
+function snippetText(req) {
+  const dest = req.dest;
+  const remote = !dest.local;
+  const base = remote ? dest.base_url : ((S.status && S.status.laya_url) || "http://127.0.0.1:8000");
+  const auth = remote ? dest.has_key : (S.status && S.status.auth);
+  const split = remote && req.endpoint.endsWith("/batch");
+  const endpoint = split ? "/v1/systemone" : req.endpoint;
+  const note = split ? t("sn.noBatch", { name: pname(dest) }) : "";
+  const url = base + endpoint;
+  const json = pretty(snippetBody(req));
+  const key = t("sn.key");
+  if (S.snippet === "curl") {
+    return (note ? "# " + note + "\n" : "") + "# " + t("sn.curl1") + "\n# " + t("sn.curl2") + "\n" +
+      'curl.exe -s ' + url + ' -H "Content-Type: application/json"' +
+      (auth ? ' -H "Authorization: Bearer ' + key + '"' : "") + ' --data-binary "@request.json"';
+  }
+  if (S.snippet === "python") {
+    return (note ? "# " + note + "\n" : "") + 'import json\nimport urllib.request\n\npayload = json.loads(r"""\n' + json + '\n""")\n\n' +
+      'req = urllib.request.Request(\n    "' + url + '",\n    data=json.dumps(payload).encode("utf-8"),\n' +
+      '    headers={"Content-Type": "application/json"' + (auth ? ', "Authorization": "Bearer ' + key + '"' : "") +
+      (remote ? ', "User-Agent": "laya-opencv"' : "") + '},\n)\n' +
+      (remote ? "opener = urllib.request.build_opener()\n" : "opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # " + t("sn.noProxy") + "\n") +
+      'with opener.open(req, timeout=60) as resp:\n    result = json.loads(resp.read().decode("utf-8"))\n\n' +
+      (endpoint.endsWith("/batch")
+        ? 'for state, item in zip(payload["states"], result["results"]):\n    print(state)\n    for qid, answer in item["answers"].items():\n        print("   ", qid, answer)\n'
+        : 'for qid, answer in result["answers"].items():\n    print(qid, answer)\n');
+  }
+  return (note ? "// " + note + "\n" : "") + "// " + t("sn.js") + "\n" +
+    'const resp = await fetch("' + url + '", {\n  method: "POST",\n  headers: { "Content-Type": "application/json"' +
+    (auth ? ', "Authorization": "Bearer ' + key + '"' : "") + " },\n  body: JSON.stringify(" + json.replace(/\n/g, "\n  ") + "),\n});\n" +
+    "const result = await resp.json();\nconsole.log(result" + (endpoint.endsWith("/batch") ? ".results" : ".answers") + ");\n";
+}
+function renderPanel() {
+  const panel = $("#panel");
+  panel.textContent = "";
+  for (const b of $("#tabs").children) b.setAttribute("aria-selected", String(b.dataset.tab === S.tab));
+  const req = buildRequest();
+
+  if (S.tab === "result") return renderResultTab(panel);
+  if (S.tab === "raw") {
+    if (!S.last) { panel.append(h("div", { class: "placeholder" }, t("raw.empty"))); return; }
+    const text = S.last.raw != null ? pretty(S.last.raw) : (S.last.netError ? t("e.net", { msg: S.last.netError }) : (S.last.error || ""));
+    panel.append(h("div", { class: "tools" }, h("button", { class: "btn small", type: "button", onclick: () => copyText(text) }, t("btn.copy"))));
+    panel.append(h("pre", { class: "code" }, text));
+    return;
+  }
+  if (S.tab === "request") {
+    const text = pretty(req.body);
+    panel.append(h("div", { class: "tools" },
+      h("button", { class: "btn small", type: "button", onclick: () => copyText(text) }, t("btn.copy")),
+      h("button", { class: "btn small", type: "button", onclick: () => download("request.json", text) }, t("btn.download")),
+      h("code", {}, "POST " + req.endpoint + "  →  " + pname(req.dest))));
+    panel.append(h("pre", { class: "code" }, text));
+    return;
+  }
+  if (S.tab === "code") {
+    const seg = h("div", { class: "seg" });
+    [["curl", "curl"], ["python", "Python"], ["js", "JavaScript"]].forEach(pair => {
+      seg.append(h("button", { type: "button", "aria-pressed": String(S.snippet === pair[0]), onclick: () => { S.snippet = pair[0]; renderPanel(); } }, pair[1]));
+    });
+    const text = snippetText(req);
+    panel.append(h("div", { class: "tools" }, seg,
+      h("button", { class: "btn small", type: "button", onclick: () => copyText(text) }, t("btn.copy")),
+      S.snippet === "curl" ? h("button", { class: "btn small", type: "button", onclick: () => download("request.json", pretty(snippetBody(req))) }, t("btn.download")) : null));
+    panel.append(h("pre", { class: "code" }, text));
+    return;
+  }
+  if (!S.history.length) { panel.append(h("div", { class: "placeholder" }, t("h.empty"))); return; }
+  panel.append(h("div", { class: "tools" }, h("button", { class: "btn small", type: "button",
+    onclick: () => { S.history = []; saveHistory(); renderPanel(); } }, t("h.clear")), h("span", { class: "hint" }, t("h.tip"))));
+  S.history.forEach(item => {
+    panel.append(h("button", { class: "hist", type: "button", onclick: () => { try { loadRequest(item.request); S.note = ""; refresh(); toast(t("h.loaded")); } catch (e) { toast(e.message); } } },
+      h("span", {}, item.title), h("span", { class: "t" + (item.ok ? "" : " bad") }, (item.ok ? Math.round(item.ms) + " ms" : t("h.failed")) + t("sep.gap") + item.time),
+      h("span", { class: "s" }, item.summary)));
+  });
+}
+function renderDebug() {
+  $("#debug-count").textContent = "(" + S.debug.length + ")";
+  const box = $("#debug-body");
+  box.textContent = "";
+  S.debug.forEach(d => {
+    box.append(h("div", { class: "dbg" },
+      h("h3", {}, d.time + "  " + d.provider + "  POST " + d.endpoint + "  →  " + (d.status || t("d.netErr")) + "  " + Math.round(d.ms) + " ms"),
+      h("div", { class: "dbg-cols" }, h("pre", { class: "code" }, pretty(d.request)), h("pre", { class: "code" }, d.response))));
+  });
+}
+
+/* ---------- 顶部状态 ---------- */
+function renderStatus() {
+  const st = S.status, dot = $("#status-dot"), text = $("#status-text");
+  if (st === undefined) { dot.className = "dot"; text.textContent = t("s.connecting"); return; }
+  if (!st) { dot.className = "dot bad"; text.textContent = t("s.offline"); return; }
+  const dest = resolved();
+  if (!dest.local) {
+    dot.className = usable(dest) ? "dot ok" : "dot wait";
+    text.textContent = pname(dest) + t("sep.gap") + (dest.has_key ? t("s.keySet") + (dest.key_hint ? " ····" + dest.key_hint : "") : dest.key_optional ? t("s.keyOptional") : t("s.keyMissing"));
+  } else if (st.ready) {
+    const hl = st.health || {};
+    dot.className = "dot ok";
+    text.textContent = t("s.localReady") + (hl.device ? t("sep.gap") + hl.device : "") + (hl.loaded && hl.loaded.length ? t("sep.gap") + hl.loaded.join(", ") : "");
+  } else if (st.service === "disabled") {
+    dot.className = "dot bad"; text.textContent = t("s.localDisabled");
+  } else if (st.service === "exited") {
+    dot.className = "dot bad"; text.textContent = t("s.localExited") + (st.exit_code != null ? t("s.code", { n: st.exit_code }) : "");
+  } else {
+    dot.className = "dot wait"; text.textContent = t("s.localLoading");
+  }
+}
+function renderVersions() {
+  const el = $("#versions");
+  const u = S.status && S.status.update;
+  if (!u || !u.installed) { el.hidden = true; el.textContent = ""; return; }
+  const notes = { latest: "v.latest", upgraded: "v.upgraded", available: "v.available", failed: "v.failed", offline: "v.offline",
+    rolled_back: "v.rolledBack", skipped: "v.skipped", running: "v.running" };
+  const note = notes[u.status] ? t(notes[u.status], { v: u.latest || "", from: u.previous || "" }) : "";
+  const parts = ["Laya " + u.installed + (note ? t("v.wrap", { note: note }) : "")];
+  const revs = (S.status.health && S.status.health.revisions) || {};
+  const sha = Object.values(revs).find(Boolean);
+  if (sha) parts.push(t("v.model", { sha: String(sha).slice(0, 8) }) + (u.model_before && u.model_before !== sha ? t("v.wrap", { note: t("v.modelUpdated") }) : ""));
+  else if (u.model_before && u.model_latest && u.model_before !== u.model_latest) parts.push(t("v.modelPending"));
+  el.hidden = false;
+  el.textContent = parts.join(t("sep.gap"));
+}
+function renderHint() {
+  const st = S.status, el = $("#hint");
+  let cls = "hint", msg = "";
+  if (st === undefined) { msg = ""; }
+  else if (!st) { cls = "hint bad"; msg = t("hint.offline"); }
+  else {
+    const dest = resolved();
+    if (!dest.local) {
+      if (!usable(dest)) { cls = "hint warn"; msg = t("hint.needKey", { model: S.model.trim() || dest.default_model }); }
+      else {
+        msg = t("hint.via", { url: dest.base_url });
+        const backups = autoBackups();
+        if (backups.length) msg += t("hint.backup", { names: backups.map(pname).join(t("sep.list")) });
+        if (S.mode === "batch") { cls = "hint warn"; msg += t("hint.batchRemote"); }
+      }
+    } else if (st.service === "disabled") { cls = "hint bad"; msg = t("hint.localDisabled"); }
+    else if (!st.ready && st.service === "exited") { cls = "hint bad"; msg = t("hint.localExited"); }
+    else if (!st.ready) { cls = "hint warn"; msg = t("hint.loading"); }
+    else {
+      const loaded = (st.health && st.health.loaded) || [];
+      const model = S.model.trim().toLowerCase();
+      const alias = { en: "english", laya: "english", "default": "english", ml: "multilingual", multi: "multilingual", "laya-multilingual": "multilingual",
+        typed: "typed-decisions", typed_decisions: "typed-decisions", "laya-typed-decisions": "typed-decisions", decisions: "typed-decisions" };
+      const name = alias[model] || model;
+      if (!model) { cls = "hint warn"; msg = t("hint.autoRoute"); }
+      else if (!isLayaModel(model)) { cls = "hint warn"; msg = t("hint.notLaya", { model: S.model.trim() }); }
+      else if (loaded.length && !loaded.includes(name) && !name.includes("/")) { cls = "hint warn"; msg = t("hint.notLoaded", { name: name }); }
+      else msg = t("hint.addr", { url: st.laya_url });
+    }
+  }
+  el.className = cls; el.textContent = msg;
+}
+async function pollStatus() {
+  const first = S.status === undefined;
+  try {
+    const resp = await api("/_wb/status", { cache: "no-store" });
+    S.status = resp.ok ? await resp.json() : null;
+  } catch (e) { S.status = null; }
+  if (first && S.status && !LANG_CHOSEN && (S.status.language === "zh" || S.status.language === "en") && S.status.language !== LANG) {
+    setLang(S.status.language, false);   // 没手动选过语言时，跟随 config.json / 系统语言
+  }
+  if (first) { fitModelToTarget(); $("#model").value = S.model; renderModelOptions(); }
+  if (document.activeElement !== $("#target")) renderTargets();
+  renderStatus(); refresh();
+  if (window.WBV) window.WBV.onStatus();
+  if (S.settingsOpen && first) renderSettings();
+  if (S.waiting) {
+    if (S.status && S.status.ready) { S.waiting = false; run(); }
+    else if (!S.status || S.status.service !== "starting") { S.waiting = false; refresh(); renderPanel(); }
+  }
+  clearTimeout(pollStatus.timer);
+  const waiting = S.status && !S.status.ready && S.status.service === "starting";
+  pollStatus.timer = setTimeout(pollStatus, !S.status || waiting ? 2500 : 15000);
+}
+
+/* ---------- 汇总刷新 ---------- */
+function refresh() {
+  const req = buildRequest();
+  $("#q-title").textContent = t("q.title", { n: S.questions.length });
+  $("#endpoint").textContent = "POST " + (req.dest.local || S.mode !== "batch" ? req.endpoint : "/v1/systemone × " + batchStates().length);
+  const auto = $("#target").options[0];
+  if (auto) auto.textContent = autoLabel();
+  renderStatus();
+  let count;
+  if (S.mode === "batch") count = t("count.items", { n: batchStates().length });
+  else if (S.stateTab === "text") count = t("count.chars", { n: S.text.length });
+  else if (S.stateTab === "json") count = t("count.chars", { n: S.json.length });
+  else count = t("count.msgs", { n: S.messages.filter(m => m.content.trim()).length });
+  $("#state-count").textContent = count;
+  if (S.waiting && (!req.dest.local || req.problems.length)) S.waiting = false;
+  $("#problem").textContent = S.running ? "" : S.waiting ? t("run.waitingNote") : (req.problems[0] || "");
+  $("#run").disabled = S.running || req.problems.length > 0;
+  $("#run-label").textContent = S.running ? t("run.running") : S.waiting ? t("run.waiting") : t("run");
+  $("#example-note").textContent = S.note;
+  renderHint(); renderVersions();
+  if ((S.settingsOpen || S.adding) && settingsKey() !== S.setShown) { resetSettingsUi(); renderSettings(); }
+  if (S.tab === "request" || S.tab === "code") renderPanel();
+}
+function renderAll() {
+  renderTargets(); renderModelOptions(); renderSettings();
+  $("#mode").value = S.mode;
+  $("#model").value = S.model;
+  $("#min-conf").value = S.minConf;
+  $("#max-len").value = S.maxLen;
+  renderState(); renderQuestions(); refresh(); renderPanel();
+}
+
+/* ---------- 运行 ---------- */
+function summarize(body) {
+  if (Array.isArray(body.results)) return t("h.batch", { n: body.results.length });
+  return Object.keys(body.answers || {}).map(id => {
+    const a = body.answers[id];
+    return id + "=" + ("choice" in a ? a.choice : "score" in a ? Number(a.score).toFixed(2) : (Number(a.noul) >= 0.5 ? t("r.yes") : t("r.no")));
+  }).join(t("sep.list"));
+}
+function gateLocally(result, min) {
+  Object.values((result && result.answers) || {}).forEach(a => {
+    if (!a || typeof a !== "object" || a.abstention) return;
+    if (a.answer_confidence == null) return;
+    a.abstention_threshold = min;
+    if (Number(a.answer_confidence) < min) { a.low_confidence = true; a.abstention = "abstained"; }
+    else a.abstention = "passed";
+  });
+}
+function fillConfidence(result) {
+  Object.values((result && result.answers) || {}).forEach(a => {
+    if (!a || typeof a !== "object" || a.answer_confidence != null) return;
+    if (a.probabilities && typeof a.probabilities === "object") {
+      const vals = Object.values(a.probabilities).map(Number).filter(isFinite);
+      if (vals.length) a.answer_confidence = Math.max.apply(null, vals);
+    } else if (a.noul != null) a.answer_confidence = Math.max(Number(a.noul), 1 - Number(a.noul));
+  });
+}
+async function run() {
+  const req = buildRequest();
+  if (S.running || req.problems.length) return;
+  if (req.dest.local && S.status && !S.status.ready && S.status.service === "starting") {
+    S.waiting = !S.waiting;            // 模型没加载完：先排队，加载完由 pollStatus 触发
+    S.tab = "result"; refresh(); renderPanel();
+    if (S.waiting) pollStatus();
+    return;
+  }
+  S.waiting = false;
+  S.running = true; S.tab = "result"; refresh(); renderPanel();
+  const started = performance.now();
+  const record = { ok: false, status: 0, body: null, raw: null, error: "", netError: "", ms: 0, inferMs: null, request: req.body, endpoint: req.endpoint,
+    remote: !req.dest.local, providerId: req.dest.id, tried: [], localGate: false };
+  try {
+    const resp = await api(req.endpoint, { method: "POST",
+      headers: { "Content-Type": "application/json", "X-WB-Target": S.target }, body: JSON.stringify(req.body) });
+    record.status = resp.status;
+    const infer = resp.headers.get("X-Inference-Time-Ms");
+    if (infer) record.inferMs = Number(infer);
+    const used = resp.headers.get("X-WB-Provider");
+    if (used) { record.remote = used !== "local"; record.providerId = used; }
+    record.tried = (resp.headers.get("X-WB-Tried") || "").split(",").filter(Boolean).map(x => x.split("="));
+    const rawText = await resp.text();
+    try { record.body = JSON.parse(rawText); record.raw = JSON.parse(rawText); } catch (e) { record.error = rawText; }
+    record.ok = resp.ok && record.body != null;
+    if (record.ok) {
+      const items = Array.isArray(record.body.results) ? record.body.results : [record.body];
+      items.forEach(fillConfidence);
+      if (record.remote && S.minConf.trim() && isFinite(Number(S.minConf))) {
+        items.forEach(item => gateLocally(item, Number(S.minConf)));
+        record.localGate = true;
+      }
+    }
+  } catch (e) {
+    record.netError = e.message || String(e);
+  }
+  record.ms = performance.now() - started;
+  S.running = false; S.last = record;
+
+  const time = new Date().toLocaleTimeString(LANG === "zh" ? "zh-CN" : "en-GB", { hour12: false });
+  const name = runProviderName(record);
+  S.debug.unshift({ time: time, endpoint: req.endpoint, provider: name, status: record.status, ms: record.ms, request: req.body,
+    response: record.raw != null ? pretty(record.raw) : (record.netError ? t("e.net", { msg: record.netError }) : record.error) });
+  S.debug = S.debug.slice(0, 20);
+  const first = S.mode === "batch" ? t("h.batch", { n: req.body.states.length }) :
+    typeof req.body.state === "string" ? req.body.state : JSON.stringify(req.body.state);
+  S.history.unshift({ time: time, ok: record.ok, ms: record.ms, title: first.slice(0, 60), request: req.body,
+    summary: name + t("sep.gap") + (record.ok ? summarize(record.body) : "HTTP " + (record.status || t("d.netErr"))) });
+  S.history = S.history.slice(0, 30);
+  saveHistory();
+  refresh(); renderPanel(); renderDebug();
+}
+
+/* ---------- 示例 ---------- */
+function loadExample(ex) {
+  loadRequest(ex.request);
+  S.last = null;
+  S.exampleFile = ex.file;
+  S.exampleSnap = editorSnapshot();
+  S.note = ex.note ? t("ex.note", { title: ex.title, note: ex.note }) : "";
+  refresh(); renderPanel();
+}
+function renderExamples() {
+  const box = $("#example-buttons");
+  box.textContent = "";
+  S.examples.forEach(ex => {
+    box.append(h("button", { class: "btn", type: "button", title: ex.note,
+      onclick: () => { try { loadExample(ex); } catch (e) { toast(e.message); } } }, ex.title));
+  });
+  if (!S.examples.length) box.append(h("span", { class: "hint" }, t("ex.none")));
+}
+let exampleSeq = 0;
+async function loadExamples() {
+  const seq = ++exampleSeq;
+  let list = [];
+  try {
+    const resp = await api("/_wb/examples?lang=" + LANG, { cache: "no-store" });
+    list = resp.ok ? await resp.json() : [];
+  } catch (e) { list = []; }
+  if (seq !== exampleSeq) return;      // 期间又切了一次语言：以最新的那次为准
+  S.examples = list;
+  renderExamples();
+  /* 切换语言时：如果编辑区里还是没改过的示例，就换成同一个示例的另一种语言 */
+  const untouched = S.exampleFile && editorSnapshot() === S.exampleSnap ? S.exampleFile : null;
+  const same = untouched && S.examples.find(ex => ex.file === untouched);
+  if (same) loadExample(same);
+  else if (S.examples.length && !S.questions.length && !S.text) loadExample(S.examples[0]);
+  else if (S.exampleFile) { S.note = ""; refresh(); }
+}
+function setLang(lang, persist) {
+  LANG = lang === "en" ? "en" : "zh";
+  if (persist) { LANG_CHOSEN = true; try { localStorage.setItem(LANG_KEY, LANG); } catch (e) { /* 记不住也没关系 */ } }
+  S.setMsg = null;
+  applyStatic(); renderAll(); renderDebug();
+  loadExamples();
+  if (window.WBV) window.WBV.onLang();
+}
+
+/* ---------- 事件 ---------- */
+$("#view").addEventListener("click", e => {
+  const view = e.target.dataset && e.target.dataset.view;
+  if (view) setView(view);
+});
+$("#lang").addEventListener("click", e => {
+  const lang = e.target.dataset && e.target.dataset.lang;
+  if (lang && lang !== LANG) setLang(lang, true);
+});
+$("#mode").addEventListener("change", e => { S.mode = e.target.value; renderState(); refresh(); });
+$("#model").addEventListener("input", e => { S.model = e.target.value; refresh(); });
+$("#target").addEventListener("change", e => {
+  resetSettingsUi();
+  if (e.target.value === "__add") {          // 不是真正的接口：打开「添加第三方接口」表单
+    S.adding = true;
+    renderSettings();
+    const el = $("#add-name"); if (el) el.focus();
+    return;
+  }
+  S.adding = false;
+  setTarget(e.target.value);
+  if (!usable(resolved())) S.settingsOpen = true;
+  renderTargets(); renderModelOptions(); renderSettings(); refresh();
+});
+$("#toggle-settings").addEventListener("click", () => {
+  resetSettingsUi();
+  if (S.adding) { S.adding = false; S.settingsOpen = false; renderTargets(); }
+  else S.settingsOpen = !S.settingsOpen;
+  renderSettings();
+});
+$("#refresh-models").addEventListener("click", refreshModels);
+$("#min-conf").addEventListener("input", e => { S.minConf = e.target.value; refresh(); });
+$("#max-len").addEventListener("input", e => { S.maxLen = e.target.value; refresh(); });
+$("#state-tabs").addEventListener("click", e => {
+  const tab = e.target.dataset && e.target.dataset.tab;
+  if (tab) { S.stateTab = tab; renderState(); refresh(); }
+});
+$("#tabs").addEventListener("click", e => {
+  const tab = e.target.dataset && e.target.dataset.tab;
+  if (tab) { S.tab = tab; renderPanel(); }
+});
+document.querySelectorAll("[data-add]").forEach(btn => btn.addEventListener("click", () => {
+  S.questions.push(newQuestion(btn.dataset.add));
+  renderQuestions(); refresh();
+  const inputs = document.querySelectorAll("#questions .q:last-child textarea");
+  if (inputs.length) inputs[0].focus();
+}));
+$("#run").addEventListener("click", run);
+document.addEventListener("keydown", e => {
+  if (!(e.ctrlKey || e.metaKey) || e.key !== "Enter") return;
+  e.preventDefault();
+  if (S.view === "text") run();
+  else if (S.view === "vision" && window.WBV) window.WBV.run();
+});
+$("#reset").addEventListener("click", resetAll);
+$("#import").addEventListener("click", () => $("#file").click());
+$("#file").addEventListener("change", async e => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  try {
+    const body = JSON.parse((await file.text()).replace(/^\uFEFF/, ""));
+    const clean = {};
+    Object.keys(body || {}).forEach(k => { if (k[0] !== "_") clean[k] = body[k]; });
+    loadRequest(clean);
+    S.last = null;
+    S.note = t("ex.imported", { name: file.name });
+    refresh(); renderPanel();
+  } catch (err) { toast(t("ex.importFail", { msg: err.message })); }
+});
+
+applyStatic(); renderAll(); renderDebug(); pollStatus(); loadExamples();
+</script>
+<script src="/_wb/vision.js"></script>
+<script>applyView();</script>
+</body>
+</html>

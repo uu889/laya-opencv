@@ -1,0 +1,29 @@
+{
+  "_title": "LLM 输出校验",
+  "_note": "大模型的回答有没有依据、有没有答非所问",
+  "model": "multilingual",
+  "state": {
+    "question": "退款申请提交后多久能到账？",
+    "context": "退款审核通过后，款项将在 7 个工作日内原路退回到您的支付账户。",
+    "answer": "您好，退款一般会在 3 天内到账，并且我们会额外赠送一张 50 元优惠券作为补偿。"
+  },
+  "questions": {
+    "grounded": {
+      "type": "noul",
+      "instructions": "answer 中的所有事实是否都能在 context 中找到依据？"
+    },
+    "on_topic": {
+      "type": "noul",
+      "instructions": "answer 是否正面回应了 question？"
+    },
+    "verdict": {
+      "type": "choice",
+      "instructions": "这条 answer 应该如何处理？",
+      "criteria": {
+        "pass": "内容准确，可以直接发给用户",
+        "rewrite": "有不准确或没有依据的内容，需要重写",
+        "block": "包含违规或有害内容，必须拦截"
+      }
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "_title": "工单分流",
+  "_note": "一条客服消息，同时判断部门、紧急度和流失风险",
+  "model": "multilingual",
+  "state": "我三月份被重复扣费了，请今天退款，不然就取消订阅。",
+  "questions": {
+    "department": {
+      "type": "choice",
+      "instructions": "这条消息应该交给哪个部门处理？",
+      "criteria": {
+        "billing": "发票、付款、退款",
+        "technical": "bug、故障、系统错误",
+        "sales": "报价、购买咨询、套餐升级",
+        "other": "其他"
+      }
+    },
+    "urgency": {
+      "type": "score",
+      "instructions": "这条请求有多紧急？",
+      "criteria": ["不紧急", "需要尽快处理", "非常紧急或有明确期限"]
+    },
+    "churn_risk": {
+      "type": "noul",
+      "instructions": "用户是否威胁要取消或离开？"
+    }
+  }
+}

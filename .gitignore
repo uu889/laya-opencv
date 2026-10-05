@@ -1,0 +1,26 @@
+# 本机配置，里面有接口密钥，不要提交
+config.json
+config.json.tmp
+.update-state.json
+.update-constraints.txt
+
+# 运行时数据：训练图片、训练出的模型、下载的骨干网络、自检和复核记录
+data/
+# 在页面上另存的自定义检测方案
+recipes/my-*.json
+
+# 虚拟环境和缓存
+.venv/
+__pycache__/
+*.pyc
+
+# 打包产物
+dist/
+*.zip
+*.tar.gz
+
+# 编辑器和系统文件
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

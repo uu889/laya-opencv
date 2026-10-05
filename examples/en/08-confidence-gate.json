@@ -1,0 +1,19 @@
+{
+  "_title": "Confidence gate",
+  "_note": "Threshold 0.8: answers the model is unsure about are flagged as low confidence",
+  "model": "multilingual",
+  "min_confidence": 0.8,
+  "state": "That thing still isn't really working. Can you guys take a look?",
+  "questions": {
+    "department": {
+      "type": "choice",
+      "instructions": "Which department should handle this message?",
+      "criteria": {
+        "billing": "Invoices, payments, refunds",
+        "technical": "Bugs, outages, system errors",
+        "other": "Anything else"
+      }
+    },
+    "is_complaint": {"type": "noul", "instructions": "Is the customer expressing dissatisfaction?"}
+  }
+}

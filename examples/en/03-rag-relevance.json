@@ -1,0 +1,20 @@
+{
+  "_title": "RAG passage relevance",
+  "_note": "Can the retrieved passage answer the user's question?",
+  "model": "multilingual",
+  "state": {
+    "question": "How long does a refund take to arrive after I request it?",
+    "passage": "Once a refund is approved, the money is returned to your original payment method within 7 business days. For credit card payments, the arrival time depends on the issuing bank."
+  },
+  "questions": {
+    "relevant": {
+      "type": "noul",
+      "instructions": "Does the passage contain the information needed to answer the question?"
+    },
+    "relevance": {
+      "type": "score",
+      "instructions": "How relevant is the passage to the question?",
+      "criteria": ["Unrelated", "On topic but does not answer", "Directly answers the question"]
+    }
+  }
+}

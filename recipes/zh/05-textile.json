@@ -1,0 +1,55 @@
+{
+  "_title": "纺织物质检",
+  "_note": "平纹织物：找出破洞、污渍、断纱和粗节，量出数量、长度和面积，判定合格、降等或不合格",
+  "id": "textile",
+  "subject": "平纹织物，单幅画面约 160 mm × 120 mm",
+  "demo": {"scene": "textile", "variants": ["minor", "reject", "ok"]},
+  "train": {"model": "textile-defects", "scene": "textile", "features": ["color", "texture", "shape"], "algo": "svm"},
+  "max_side": 640,
+  "calibration": {"mm_per_px": 0.25},
+  "quality": {"min_sharpness": 5, "brightness": [40, 230]},
+  "model": "multilingual",
+  "pipeline": [
+    {"op": "mask", "name": "hole", "method": "anomaly", "pre_blur": 2.2, "sigma": 28, "k": 8, "min_delta": 30,
+     "polarity": "dark", "close": 5, "min_area": 40},
+    {"op": "mask", "name": "yarn", "method": "anomaly", "pre_blur": 2.2, "sigma": 28, "k": 6, "min_delta": 9,
+     "polarity": "bright", "close": 5, "min_area": 30},
+    {"op": "mask", "name": "stain", "method": "chroma", "pre_blur": 3, "k": 8, "min_delta": 6, "open": 5, "min_area": 120},
+    {"op": "mask", "name": "defects", "method": "combine", "how": "or", "of": ["hole", "yarn", "stain"], "close": 7},
+    {"op": "regions", "name": "defects", "from": "defects", "min_area": 30},
+    {"op": "classify", "model": "textile-defects", "on": "regions:defects", "pad": 0.25}
+  ],
+  "draw": [
+    {"mask": "stain", "color": "#f59e0b", "alpha": 0.3, "label": "污渍"},
+    {"mask": "hole", "color": "#3b82f6", "alpha": 0.5, "label": "破洞"},
+    {"regions": "defects", "color": "#e11d48", "label": "缺陷"}
+  ],
+  "measurements": {
+    "defect_count": {"label": "缺陷数量", "unit": "处", "decimals": 0, "range": [0, 50],
+                     "compute": {"type": "count", "regions": "defects"}},
+    "max_len": {"label": "最长缺陷", "unit": "mm", "decimals": 1, "guard": 2, "range": [0, 200],
+                "compute": {"type": "max", "regions": "defects", "attr": "length"}},
+    "hole_area": {"label": "破洞面积", "unit": "mm²", "decimals": 1, "guard": 0.5, "range": [0, 2000],
+                  "compute": {"type": "area", "mask": "hole"}},
+    "stain_area": {"label": "污渍面积", "unit": "mm²", "decimals": 1, "compute": {"type": "area", "mask": "stain"}},
+    "defect_ratio": {"label": "缺陷面积占比", "unit": "%", "decimals": 2, "compute": {"type": "area_ratio", "mask": "defects"}},
+    "main_defect": {"label": "主要缺陷类型", "compute": {"type": "top_label", "regions": "defects"}}
+  },
+  "rules": {
+    "verdict": {"label": "质检结论", "cases": [
+      {"value": "不合格", "when": {"any": [{"m": "hole_area", "op": ">", "value": 3}, {"m": "max_len", "op": ">", "value": 40},
+                                           {"m": "defect_count", "op": ">=", "value": 3}]}},
+      {"value": "降等", "when": {"m": "defect_count", "op": ">=", "value": 1}},
+      {"value": "合格"}]}
+  },
+  "questions": {
+    "verdict": {"type": "choice", "instructions": "这幅织物的质检结论是什么？",
+                "criteria": {"合格": "没有可见缺陷", "降等": "有轻微缺陷，降一等处理", "不合格": "有破洞、长缺陷或缺陷过多"}},
+    "action": {"type": "choice", "instructions": "综合缺陷的类型和大小，应该怎么处理？",
+               "criteria": {"正常入库": "布面完好", "降等销售": "有轻微外观缺陷", "裁剪避让": "缺陷集中在局部，裁掉后其余可用",
+                            "返修": "污渍等可以清洗或修补的缺陷"}},
+    "visible": {"type": "score", "instructions": "这些缺陷在成品上有多显眼？",
+                "criteria": ["基本看不出来", "仔细看能发现", "一眼就能看到"]}
+  },
+  "bindings": {"verdict": {"rule": "verdict"}}
+}

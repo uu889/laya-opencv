@@ -1,0 +1,16 @@
+{
+  "_title": "内容审核",
+  "_note": "批量接口：多条评论共用一组是非题",
+  "model": "multilingual",
+  "states": [
+    "这篇教程写得很清楚，照着做一次就成功了，感谢！",
+    "加微信 abc12345 免费领取会员，名额有限先到先得！！！",
+    "作者你是不是脑子有问题，写的什么垃圾东西。",
+    "请问第三步的配置文件应该放在哪个目录？"
+  ],
+  "questions": {
+    "spam": {"type": "noul", "instructions": "这条评论是否是广告或引流信息？"},
+    "abuse": {"type": "noul", "instructions": "这条评论是否包含辱骂或人身攻击？"},
+    "question": {"type": "noul", "instructions": "这条评论是否在提出需要回答的问题？"}
+  }
+}

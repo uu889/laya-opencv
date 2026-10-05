@@ -1,0 +1,12 @@
+* text=auto
+
+# Windows 批处理必须是 CRLF，shell 脚本必须是 LF，否则在对应系统上跑不起来
+*.bat  text eol=crlf
+*.sh   text eol=lf
+*.py   text eol=lf
+*.json text eol=lf
+*.html text eol=lf
+*.js   text eol=lf
+*.md   text eol=lf
+*.yml  text eol=lf
+*.png  binary

@@ -1,0 +1,50 @@
+{
+  "_title": "杂草灭除",
+  "_note": "垄行作物俯拍：分出作物行和行间杂草，量出杂草覆盖率和密度，判断要不要除草",
+  "id": "weed-control",
+  "subject": "垄行作物田，俯拍，画面约 1.28 m × 0.96 m",
+  "demo": {"scene": "weed", "variants": ["light", "heavy", "clean"]},
+  "train": {"model": "weed-vs-crop", "scene": "weed", "features": ["color", "shape", "texture"], "algo": "svm"},
+  "max_side": 640,
+  "calibration": {"mm_per_px": 2.0},
+  "quality": {"min_sharpness": 8, "brightness": [30, 225]},
+  "model": "multilingual",
+  "pipeline": [
+    {"op": "mask", "name": "veg", "method": "exg", "threshold": "otsu", "open": 3, "min_area": 20},
+    {"op": "mask", "name": "rows", "method": "rows", "from": "veg", "min_spacing": 0.15, "min_height": 0.35},
+    {"op": "mask", "name": "crop", "method": "combine", "how": "and", "of": ["veg", "rows"]},
+    {"op": "mask", "name": "weed", "method": "combine", "how": "sub", "of": ["veg", "rows"], "open": 3, "min_area": 60},
+    {"op": "regions", "name": "weeds", "from": "weed", "min_area": 60},
+    {"op": "classify", "model": "weed-vs-crop", "on": "regions:weeds", "pad": 0.2}
+  ],
+  "draw": [
+    {"mask": "crop", "color": "#14b8a6", "alpha": 0.3, "label": "作物行"},
+    {"regions": "weeds", "color": "#e11d48", "label": "行间杂草"}
+  ],
+  "measurements": {
+    "weed_cover": {"label": "杂草覆盖率", "unit": "%", "decimals": 2, "guard": 0.03,
+                   "compute": {"type": "area_ratio", "mask": "weed"}},
+    "weed_count": {"label": "杂草株数", "unit": "株", "decimals": 0, "compute": {"type": "count", "regions": "weeds"}},
+    "weed_density": {"label": "杂草密度", "unit": "株/m²", "decimals": 1, "guard": 0.3, "range": [0, 200],
+                     "compute": {"type": "density", "regions": "weeds", "per": "m2"}},
+    "crop_cover": {"label": "作物覆盖率", "unit": "%", "decimals": 1, "compute": {"type": "area_ratio", "mask": "crop"}},
+    "confirmed_weeds": {"label": "识别确认为杂草的株数", "unit": "株", "decimals": 0,
+                        "compute": {"type": "class_count", "regions": "weeds", "label": "weed"}}
+  },
+  "rules": {
+    "need": {"label": "达到除草阈值",
+             "when": {"any": [{"m": "weed_cover", "op": ">=", "value": 0.2}, {"m": "weed_density", "op": ">=", "value": 3}]}},
+    "method": {"label": "处理方式", "cases": [
+      {"value": "全面除草", "when": {"any": [{"m": "weed_cover", "op": ">=", "value": 1.0}, {"m": "weed_density", "op": ">=", "value": 12}]}},
+      {"value": "定点除草", "when": {"any": [{"m": "weed_cover", "op": ">=", "value": 0.2}, {"m": "weed_density", "op": ">=", "value": 3}]}},
+      {"value": "无需处理"}]}
+  },
+  "questions": {
+    "need": {"type": "noul", "instructions": "这块地现在是否需要除草？"},
+    "method": {"type": "choice", "instructions": "应该采用哪种处理方式？",
+               "criteria": {"全面除草": "杂草多且分布广，整块作业", "定点除草": "杂草不多，只处理有草的位置", "无需处理": "杂草很少，暂不作业"}},
+    "compete": {"type": "score", "instructions": "杂草对作物的竞争压力有多大？",
+                "criteria": ["几乎没有影响", "有一定影响，需要关注", "已经明显影响作物生长"]}
+  },
+  "bindings": {"need": {"rule": "need"}, "method": {"rule": "method"}}
+}

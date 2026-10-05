@@ -1,0 +1,25 @@
+{
+  "_title": "Email triage",
+  "_note": "The material is a JSON object with sender, subject and body",
+  "model": "multilingual",
+  "state": {
+    "from": "wei.zhang@example.com",
+    "subject": "Rescheduling next Tuesday's contract renewal meeting",
+    "body": "Hi Ms. Wang, I have a conflict with the renewal meeting on Tuesday afternoon. Could we move it to Wednesday at 10 am? Also, please send me the new contract draft beforehand. Thanks."
+  },
+  "questions": {
+    "category": {
+      "type": "choice",
+      "instructions": "Which category does this email belong to?",
+      "criteria": {
+        "meeting": "Scheduling, rescheduling, invitations",
+        "invoice": "Bills, invoices, payments",
+        "marketing": "Ads, promotions, newsletters",
+        "support": "Requests for help, problem reports",
+        "other": "Anything else"
+      }
+    },
+    "needs_reply": {"type": "noul", "instructions": "Does this email need a reply from the recipient?"},
+    "has_deadline": {"type": "noul", "instructions": "Does the email mention a specific time or deadline?"}
+  }
+}

@@ -1,0 +1,257 @@
+{
+  "_title": "Pest monitoring",
+  "_note": "Yellow sticky trap: counts insects, their sizes and density, then decides the control level",
+  "id": "pest-trap",
+  "subject": "Greenhouse yellow sticky trap, about 150 mm × 110 mm",
+  "demo": {
+    "scene": "pest",
+    "variants": [
+      "medium",
+      "high",
+      "low"
+    ]
+  },
+  "train": {
+    "model": "pest-types",
+    "scene": "pest",
+    "features": [
+      "shape",
+      "texture",
+      "color"
+    ],
+    "algo": "svm"
+  },
+  "max_side": 640,
+  "calibration": {
+    "mm_per_px": 0.25
+  },
+  "quality": {
+    "min_sharpness": 5,
+    "brightness": [
+      40,
+      240
+    ]
+  },
+  "model": "multilingual",
+  "pipeline": [
+    {
+      "op": "mask",
+      "name": "board",
+      "method": "hsv",
+      "ranges": [
+        {
+          "h": [
+            38,
+            72
+          ],
+          "s": [
+            45,
+            100
+          ],
+          "v": [
+            45,
+            100
+          ]
+        }
+      ],
+      "close": 21,
+      "fill": true,
+      "keep_largest": 1
+    },
+    {
+      "op": "mask",
+      "name": "insects",
+      "method": "gray",
+      "below": 38,
+      "within": "board",
+      "min_area": 8
+    },
+    {
+      "op": "regions",
+      "name": "insects",
+      "from": "insects",
+      "min_area": 8
+    },
+    {
+      "op": "classify",
+      "model": "pest-types",
+      "on": "regions:insects",
+      "pad": 0.4
+    }
+  ],
+  "draw": [
+    {
+      "regions": "insects",
+      "color": "#e11d48",
+      "label": "insects",
+      "colors": {
+        "whitefly": "#3b82f6",
+        "thrips": "#a855f7",
+        "fly": "#e11d48"
+      }
+    }
+  ],
+  "measurements": {
+    "total": {
+      "label": "Total insects",
+      "decimals": 0,
+      "guard": 1,
+      "range": [
+        0,
+        500
+      ],
+      "compute": {
+        "type": "count",
+        "regions": "insects"
+      }
+    },
+    "large": {
+      "label": "Large insects",
+      "decimals": 0,
+      "range": [
+        0,
+        200
+      ],
+      "compute": {
+        "type": "count",
+        "regions": "insects",
+        "where": {
+          "area": [
+            ">=",
+            6
+          ]
+        }
+      }
+    },
+    "density": {
+      "label": "Insect density",
+      "unit": "/dm²",
+      "decimals": 1,
+      "compute": {
+        "type": "density",
+        "regions": "insects",
+        "per": "dm2",
+        "within": "board"
+      }
+    },
+    "main_type": {
+      "label": "Main type",
+      "compute": {
+        "type": "top_label",
+        "regions": "insects"
+      }
+    },
+    "whitefly": {
+      "label": "Whiteflies",
+      "decimals": 0,
+      "compute": {
+        "type": "class_count",
+        "regions": "insects",
+        "label": "whitefly"
+      }
+    },
+    "thrips": {
+      "label": "Thrips",
+      "decimals": 0,
+      "compute": {
+        "type": "class_count",
+        "regions": "insects",
+        "label": "thrips"
+      }
+    },
+    "fly": {
+      "label": "Flies",
+      "decimals": 0,
+      "compute": {
+        "type": "class_count",
+        "regions": "insects",
+        "label": "fly"
+      }
+    }
+  },
+  "rules": {
+    "act": {
+      "label": "Control threshold reached",
+      "when": {
+        "any": [
+          {
+            "m": "total",
+            "op": ">=",
+            "value": 30
+          },
+          {
+            "m": "large",
+            "op": ">=",
+            "value": 10
+          }
+        ]
+      }
+    },
+    "level": {
+      "label": "Control level",
+      "cases": [
+        {
+          "value": "Act now",
+          "when": {
+            "any": [
+              {
+                "m": "total",
+                "op": ">=",
+                "value": 30
+              },
+              {
+                "m": "large",
+                "op": ">=",
+                "value": 10
+              }
+            ]
+          }
+        },
+        {
+          "value": "Monitor closely",
+          "when": {
+            "m": "total",
+            "op": ">=",
+            "value": 10
+          }
+        },
+        {
+          "value": "Normal"
+        }
+      ]
+    }
+  },
+  "questions": {
+    "act": {
+      "type": "noul",
+      "instructions": "Is immediate control action needed?"
+    },
+    "level": {
+      "type": "choice",
+      "instructions": "Which level is the current pest situation?",
+      "criteria": {
+        "Act now": "the count is over the control threshold",
+        "Monitor closely": "the count is rising, check more often",
+        "Normal": "the count is low, keep the usual schedule"
+      }
+    },
+    "measure": {
+      "type": "choice",
+      "instructions": "Considering the count and the types, what is the preferred measure?",
+      "criteria": {
+        "Keep watching": "the count is low, nothing extra is needed",
+        "Add traps": "moderate count, bring it down with more traps",
+        "Release natural enemies": "mostly small pests such as whiteflies and thrips, suited to biological control",
+        "Chemical control": "the count is high and must come down quickly"
+      }
+    }
+  },
+  "bindings": {
+    "act": {
+      "rule": "act"
+    },
+    "level": {
+      "rule": "level"
+    }
+  }
+}

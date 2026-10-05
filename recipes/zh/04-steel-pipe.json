@@ -1,0 +1,57 @@
+{
+  "_title": "钢管质检",
+  "_note": "钢管外表面：找出划痕、凹坑和锈斑，量出长度和面积，判定合格、让步接收或不合格",
+  "id": "steel-pipe",
+  "subject": "无缝钢管外表面，横向拍摄",
+  "demo": {"scene": "steel", "variants": ["minor", "reject", "ok"]},
+  "train": {"model": "steel-defects", "scene": "steel", "features": ["color", "texture", "shape"], "algo": "svm"},
+  "max_side": 640,
+  "calibration": {"mm_per_px": 0.2},
+  "quality": {"min_sharpness": 5, "brightness": [40, 230]},
+  "model": "multilingual",
+  "pipeline": [
+    {"op": "mask", "name": "pipe", "method": "gray", "above": 22, "close": 9, "fill": true, "keep_largest": 1, "erode": 9},
+    {"op": "mask", "name": "rust", "method": "hsv", "ranges": [{"h": [5, 42], "s": [35, 100], "v": [20, 100]}],
+     "within": "pipe", "open": 3, "close": 7, "min_area": 40},
+    {"op": "mask", "name": "surface", "method": "anomaly", "pre_blur": 1.0, "background": "median", "ksize": 41,
+     "k": 7, "min_delta": 18, "within": "pipe", "min_area": 12},
+    {"op": "mask", "name": "defects", "method": "combine", "how": "or", "of": ["surface", "rust"], "close": 5},
+    {"op": "regions", "name": "defects", "from": "defects", "min_area": 12},
+    {"op": "classify", "model": "steel-defects", "on": "regions:defects", "pad": 0.25}
+  ],
+  "draw": [
+    {"mask": "rust", "color": "#f59e0b", "alpha": 0.35, "label": "锈斑"},
+    {"regions": "defects", "color": "#e11d48", "label": "缺陷"}
+  ],
+  "measurements": {
+    "defect_count": {"label": "缺陷数量", "unit": "处", "decimals": 0, "range": [0, 50],
+                     "compute": {"type": "count", "regions": "defects"}},
+    "scratch_len": {"label": "最长划痕", "unit": "mm", "decimals": 1, "guard": 1, "range": [0, 200],
+                    "compute": {"type": "max", "regions": "defects", "attr": "length", "where": {"elongation": [">=", 4]}}},
+    "pit_count": {"label": "凹坑数量", "unit": "处", "decimals": 0, "range": [0, 30],
+                  "compute": {"type": "count", "regions": "defects", "where": {"elongation": ["<", 4], "area": ["<", 30]}}},
+    "rust_ratio": {"label": "锈蚀面积占比", "unit": "%", "decimals": 2, "guard": 0.05,
+                   "compute": {"type": "area_ratio", "mask": "rust", "within": "pipe"}},
+    "defect_area": {"label": "缺陷总面积", "unit": "mm²", "decimals": 1, "compute": {"type": "sum", "regions": "defects", "attr": "area"}},
+    "main_defect": {"label": "主要缺陷类型", "compute": {"type": "top_label", "regions": "defects"}}
+  },
+  "rules": {
+    "verdict": {"label": "质检结论", "cases": [
+      {"value": "不合格", "when": {"any": [{"m": "rust_ratio", "op": ">", "value": 0.5}, {"m": "scratch_len", "op": ">", "value": 20},
+                                           {"m": "pit_count", "op": ">=", "value": 2}]}},
+      {"value": "让步接收", "when": {"m": "defect_count", "op": ">=", "value": 1}},
+      {"value": "合格"}]},
+    "pass": {"label": "可以放行", "when": {"not": {"any": [{"m": "rust_ratio", "op": ">", "value": 0.5},
+                                                           {"m": "scratch_len", "op": ">", "value": 20},
+                                                           {"m": "pit_count", "op": ">=", "value": 2}]}}}
+  },
+  "questions": {
+    "verdict": {"type": "choice", "instructions": "这段钢管的质检结论是什么？",
+                "criteria": {"合格": "没有可见缺陷", "让步接收": "有轻微缺陷，在允许范围内", "不合格": "缺陷超出允许范围"}},
+    "pass": {"type": "noul", "instructions": "这段钢管能否放行到下一道工序？"},
+    "action": {"type": "choice", "instructions": "综合缺陷的类型和严重程度，应该怎么处理？",
+               "criteria": {"直接放行": "表面完好", "打磨修复": "只有浅划痕或小凹坑，可以修磨",
+                            "除锈复检": "主要问题是锈蚀，除锈后重新检验", "报废": "缺陷严重或数量多，不值得修复"}}
+  },
+  "bindings": {"verdict": {"rule": "verdict"}, "pass": {"rule": "pass"}}
+}

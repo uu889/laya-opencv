@@ -1,0 +1,25 @@
+{
+  "_title": "邮件分拣",
+  "_note": "素材是带发件人、主题、正文的 JSON 对象",
+  "model": "multilingual",
+  "state": {
+    "from": "zhang.wei@example.com",
+    "subject": "关于下周二合同续签会议的时间调整",
+    "body": "王经理您好，原定周二下午的续签会议我这边有冲突，能否改到周三上午十点？另外请提前把新版合同发我看一下，谢谢。"
+  },
+  "questions": {
+    "category": {
+      "type": "choice",
+      "instructions": "这封邮件属于哪一类？",
+      "criteria": {
+        "meeting": "会议安排、改期、邀请",
+        "invoice": "账单、发票、付款",
+        "marketing": "广告、推广、订阅邮件",
+        "support": "问题求助、故障反馈",
+        "other": "其他"
+      }
+    },
+    "needs_reply": {"type": "noul", "instructions": "这封邮件是否需要收件人回复？"},
+    "has_deadline": {"type": "noul", "instructions": "邮件中是否提到了具体的时间或期限？"}
+  }
+}

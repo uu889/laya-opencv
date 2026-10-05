@@ -1,0 +1,19 @@
+{
+  "_title": "置信度门控",
+  "_note": "设了置信度阈值 0.8，拿不准的答案会被标成低置信度",
+  "model": "multilingual",
+  "min_confidence": 0.8,
+  "state": "那个东西还是不太行，你们看看吧。",
+  "questions": {
+    "department": {
+      "type": "choice",
+      "instructions": "这条消息应该交给哪个部门处理？",
+      "criteria": {
+        "billing": "发票、付款、退款",
+        "technical": "bug、故障、系统错误",
+        "other": "其他"
+      }
+    },
+    "is_complaint": {"type": "noul", "instructions": "用户是否在表达不满？"}
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "_title": "害虫监测",
+  "_note": "黄色粘虫板：数出虫口数量、大小和密度，判断防治等级",
+  "id": "pest-trap",
+  "subject": "温室黄色粘虫板，单板约 150 mm × 110 mm",
+  "demo": {"scene": "pest", "variants": ["medium", "high", "low"]},
+  "train": {"model": "pest-types", "scene": "pest", "features": ["shape", "texture", "color"], "algo": "svm"},
+  "max_side": 640,
+  "calibration": {"mm_per_px": 0.25},
+  "quality": {"min_sharpness": 5, "brightness": [40, 240]},
+  "model": "multilingual",
+  "pipeline": [
+    {"op": "mask", "name": "board", "method": "hsv", "ranges": [{"h": [38, 72], "s": [45, 100], "v": [45, 100]}],
+     "close": 21, "fill": true, "keep_largest": 1},
+    {"op": "mask", "name": "insects", "method": "gray", "below": 38, "within": "board", "min_area": 8},
+    {"op": "regions", "name": "insects", "from": "insects", "min_area": 8},
+    {"op": "classify", "model": "pest-types", "on": "regions:insects", "pad": 0.4}
+  ],
+  "draw": [
+    {"regions": "insects", "color": "#e11d48", "label": "虫体",
+     "colors": {"whitefly": "#3b82f6", "thrips": "#a855f7", "fly": "#e11d48"}}
+  ],
+  "measurements": {
+    "total": {"label": "虫口总数", "unit": "头", "decimals": 0, "guard": 1, "range": [0, 500],
+              "compute": {"type": "count", "regions": "insects"}},
+    "large": {"label": "大型虫体数量", "unit": "头", "decimals": 0, "range": [0, 200],
+              "compute": {"type": "count", "regions": "insects", "where": {"area": [">=", 6]}}},
+    "density": {"label": "虫口密度", "unit": "头/dm²", "decimals": 1,
+                "compute": {"type": "density", "regions": "insects", "per": "dm2", "within": "board"}},
+    "main_type": {"label": "主要种类", "compute": {"type": "top_label", "regions": "insects"}},
+    "whitefly": {"label": "粉虱数量", "unit": "头", "decimals": 0, "compute": {"type": "class_count", "regions": "insects", "label": "whitefly"}},
+    "thrips": {"label": "蓟马数量", "unit": "头", "decimals": 0, "compute": {"type": "class_count", "regions": "insects", "label": "thrips"}},
+    "fly": {"label": "蝇类数量", "unit": "头", "decimals": 0, "compute": {"type": "class_count", "regions": "insects", "label": "fly"}}
+  },
+  "rules": {
+    "act": {"label": "达到防治阈值",
+            "when": {"any": [{"m": "total", "op": ">=", "value": 30}, {"m": "large", "op": ">=", "value": 10}]}},
+    "level": {"label": "防治等级", "cases": [
+      {"value": "立即防治", "when": {"any": [{"m": "total", "op": ">=", "value": 30}, {"m": "large", "op": ">=", "value": 10}]}},
+      {"value": "加强监测", "when": {"m": "total", "op": ">=", "value": 10}},
+      {"value": "正常"}]}
+  },
+  "questions": {
+    "act": {"type": "noul", "instructions": "是否需要立即采取防治措施？"},
+    "level": {"type": "choice", "instructions": "当前的虫情属于哪个等级？",
+              "criteria": {"立即防治": "虫口已超过防治阈值", "加强监测": "虫口在上升，缩短检查间隔", "正常": "虫口很低，按常规周期检查"}},
+    "measure": {"type": "choice", "instructions": "综合虫口数量和种类，首选的措施是什么？",
+                "criteria": {"继续观察": "虫口很低，不需要额外措施", "增挂粘虫板": "虫口中等，用物理诱捕压低基数",
+                             "释放天敌": "以粉虱、蓟马等小型害虫为主，适合生物防治", "化学防治": "虫口很高，需要尽快压低"}}
+  },
+  "bindings": {"act": {"rule": "act"}, "level": {"rule": "level"}}
+}
