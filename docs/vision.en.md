@@ -76,13 +76,23 @@ Each region has `area`, `length`, `width`, `diameter` (equivalent diameter), `el
 
 If the model has not been trained yet, the step is skipped, measurements that depend on recognition have no value, and rule decisions are unaffected.
 
-### detect: an externally trained detector
+### detect: an externally trained ONNX detector
 
 ```json
 {"op": "detect", "model_file": "data/onnx/pests.onnx", "classes": ["aphid", "whitefly"], "size": 640, "conf": 0.25, "iou": 0.45, "into": "insects"}
 ```
 
 ONNX exports of the YOLO family are supported (both the v5 and the v8 / v11 output layout). `classes` are the class names used in training, in the same order. If the file is missing, measurements that depend on it are reported as "not measured", and rules bound to them ask for review instead of treating the count as 0.
+
+### detect: a detector trained in this project (object detection)
+
+```json
+{"op": "detect", "model": "weed-detector", "conf": 0.4, "classes": ["weed"], "as": "regions:weeds"}
+```
+
+`model` is the name of a model trained on the "Vision training → Object detection" page (`data/det/models/<name>/`). `conf` is the confidence threshold; `classes` optionally keeps only those classes; `as` is `regions:name` (`into` is accepted too), default `objects`. The regions have exactly the same shape as those from a `regions` step (`bbox`, `area`, `length`, `width`, `elongation`, `circularity`, …) plus `label` and `prob`, so later `count`, `class_count`, `top_label`, `sum` / `max` measurements use them as usual. The annotated image shows the class and score of every box.
+
+If the model has not been trained, or torch / torchvision are not installed, the step yields no regions, `notes` gets `model_missing:<name>`, and measurements that depend on it are reported as "not measured" (like `classify`); the other steps and rule decisions are unaffected. Inference loads torch lazily inside the vision service, so the first call takes a few seconds.
 
 ## measurements
 
@@ -190,3 +200,54 @@ The full parameters are described in the comments at the top of `app/vision_serv
 5. Write rules and questions with thresholds from your own standard; set `guard` for measurements that are unreliable near a threshold
 6. Train a recognition model only when you need to tell classes apart
 7. Once a decision model is connected, run the numeric self-test
+
+## Object detection
+
+The "Vision training" page has two sub-tabs: **Region classification** (the original small cv2.ml classifiers) and **Object detection** (torchvision SSDLite / Faster R-CNN, which draws a box around every target in an image). Detection needs `install_training` (torch + torchvision); without it, datasets and labelling still work, training and inference are disabled, and the `detect` field of `GET /v1/vision/health` says why.
+
+### Data
+
+```
+data/det/datasets/<name>/images/*.jpg      images
+data/det/datasets/<name>/labels/*.txt      YOLO format: one `class_id cx cy w h` per line (normalised 0–1)
+data/det/datasets/<name>/classes.json      ["crop", "weed"]
+data/det/models/<name>/model.pt + meta.json
+```
+
+This is the usual YOLO layout, so data labelled with LabelImg, Roboflow and similar tools can be copied in directly (do not forget `classes.json`). The labeller on the page: choose an image (or click a thumbnail to open an existing one), drag on the image to draw a box, pick its class, save; click a box to change its class or press Delete to remove it. "Pre-label from recipe" proposes boxes from an existing recipe's segmentation / classification steps for you to correct. "Generate synthetic samples" creates demo data with boxes from the five built-in scenes.
+
+### Training
+
+Parameters: network (`ssdlite` is fast and fits a 4 GB GPU, the default; `fasterrcnn_mobile` is a bit more accurate and slower), epochs, batch size, input size, holdout fraction, pretrained weights (`auto`: try to download torchvision's ImageNet backbone weights, and train from scratch with a hint about where to place the file manually if the download fails; `yes`: fail if the download fails; `no`: train from scratch). Training runs in the subprocess `app/detect_train.py`; progress (epoch / step / loss / ETA) and the log are shown on the page, and the job can be cancelled. Out-of-memory errors halve the batch size and retry automatically. The result is mAP@0.5 on the holdout set plus per-class AP.
+
+Manual weights: download `https://download.pytorch.org/models/mobilenet_v3_large-8738ca79.pth` into `%TORCH_HOME%\hub\checkpoints\` (default `~/.cache/torch/hub/checkpoints/`), then train with `auto` or `yes`.
+
+The CLI can be used directly too (one JSON event per stdout line):
+
+```
+python app/detect_train.py probe
+python app/detect_train.py train --dataset data/det/datasets/demo-weed --out data/det/models/weed-det --epochs 20 --batch 8 --imgsz 320 [--pretrained auto|yes|no] [--resume]
+python app/detect_train.py predict --model data/det/models/weed-det --image photo.jpg --conf 0.4
+```
+
+### Using it in a recipe
+
+See the `detect` section under pipeline above: `{"op": "detect", "model": "weed-det", "conf": 0.4, "as": "regions:weeds"}`.
+
+### Endpoints
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /v1/vision/det/datasets` | datasets `[{name, images, boxes, classes}]` |
+| `POST /v1/vision/det/datasets/create` | `{name, classes}` |
+| `POST /v1/vision/det/datasets/add` | `{name, image, boxes:[{label, bbox:[x,y,w,h]}], size}` in pixels; the server converts to YOLO |
+| `POST /v1/vision/det/datasets/label` | `{name, file, boxes}` replace one image's labels |
+| `GET /v1/vision/det/datasets/items?name=&offset=&limit=` | paged images with boxes |
+| `GET /v1/vision/det/datasets/image?name=&file=[&thumb=1]` | image / thumbnail |
+| `POST /v1/vision/det/datasets/delete` | `{name, file?}` |
+| `POST /v1/vision/det/datasets/demo` | `{scene, name, count}` synthetic dataset (background job) |
+| `POST /v1/vision/det/datasets/prelabel` | `{name, file, recipe}` candidate boxes from a recipe |
+| `POST /v1/vision/det/train` | `{dataset, name, arch, epochs, batch, imgsz, pretrained, holdout, resume}` → background job; progress in `GET /v1/vision/jobs?id=` (with `epoch/epochs/step/steps/loss/eta_seconds/log_tail`) |
+| `POST /v1/vision/jobs/cancel` | `{id}` cancel a job |
+| `GET /v1/vision/det/models`, `POST /v1/vision/det/models/delete` | list / delete models |
+| `POST /v1/vision/det/predict` | `{model, image, conf}` → `{boxes, image}` (annotated) |

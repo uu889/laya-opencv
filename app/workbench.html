@@ -59,6 +59,11 @@ code, .mono { font-family: var(--mono); }
   background: #fff; display: flex; align-items: center; gap: 10px;
 }
 select.control { appearance: auto; }
+.model-row { display: flex; gap: 6px; }
+.model-row #model { flex: 1 1 auto; min-width: 0; }
+.model-row .model-pick { flex: 0 0 46px; width: 46px; padding: 0; color: transparent; cursor: pointer; appearance: none; -webkit-appearance: none;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14'%3E%3Cpath d='M3 5l4 4 4-4' fill='none' stroke='%2316232b' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat center; }
+.model-row .model-pick option { color: var(--ink); }
 input.control { font-family: var(--mono); }
 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
 .dot.ok { background: var(--teal); }
@@ -289,6 +294,7 @@ td.ok { color: var(--teal-deep); } td.no { color: var(--bad); } td.edge { color:
 .rowline .grow { flex: 1 1 160px; min-width: 0; }
 .rowline .inline-input { width: 150px; }
 .rowline .inline-input.grow { width: auto; }
+.rowline .vm-label { flex: 0 0 104px; }
 .checks { display: flex; gap: 6px 16px; flex-wrap: wrap; }
 table.cm td, table.cm th { text-align: center; padding: 6px 8px; }
 table.cm td.diag { font-weight: 700; }
@@ -300,6 +306,25 @@ table.cm td.diag { font-weight: 700; }
 .model .meta-line { font-size: 13px; color: var(--ink-2); margin-top: 2px; }
 .toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); background: #16232b; color: #fff; padding: 9px 16px; border-radius: 10px; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s; }
 .toast.on { opacity: 1; }
+
+/* 决策训练 */
+.kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 14px; margin: 8px 0 4px; }
+.kv > div { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+.kv .k { font-size: 12.5px; color: var(--muted); }
+.kv .v { font-size: 15px; font-weight: 600; margin-top: 2px; word-break: break-all; }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 12px; }
+.form-grid .vfield { margin-bottom: 4px; }
+.pager { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0; font-size: 13.5px; color: var(--ink-2); }
+.badge.active { background: var(--teal); color: #fff; }
+.badge.dim { background: #eef3f7; color: var(--ink-2); }
+.spark { display: block; width: 100%; height: 90px; border: 1px solid var(--line); border-radius: 10px; background: #fff; margin: 8px 0; }
+.logtail { max-height: 240px; font-size: 12px; }
+td.cell-state { max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.exp { display: flex; gap: 8px; align-items: center; margin-top: 8px; font-size: 13.5px; color: var(--ink-2); flex-wrap: wrap; }
+.exp select { height: 32px; border: 1px solid var(--line); border-radius: 8px; background: #fff; font-size: 13.5px; padding: 0 6px; }
+.jobstat { display: flex; gap: 6px 16px; flex-wrap: wrap; font-size: 13.5px; color: var(--ink-2); margin-top: 6px; }
+#d-import-text { min-height: 160px; font-family: var(--mono); font-size: 12.5px; }
+#d-state { min-height: 120px; font-size: 15px; }
 </style>
 </head>
 <body>
@@ -309,7 +334,8 @@ table.cm td.diag { font-weight: 700; }
   <div class="seg nav" id="view" role="group" data-i18n-aria="view.aria">
     <button type="button" data-view="text" data-i18n="view.text">文本判定</button>
     <button type="button" data-view="vision" data-i18n="view.vision">视觉检测</button>
-    <button type="button" data-view="train" data-i18n="view.train">模型训练</button>
+    <button type="button" data-view="train" data-i18n="view.train">视觉训练</button>
+    <button type="button" data-view="decision" data-i18n="view.decision">决策训练</button>
   </div>
   <div class="seg" id="lang" role="group" aria-label="Language / 语言">
     <button type="button" data-lang="zh" lang="zh-CN">中文</button>
@@ -325,7 +351,10 @@ table.cm td.diag { font-weight: 700; }
     </div>
     <div class="field">
       <label for="model"><span data-i18n="f.model">模型</span> <button class="link" id="refresh-models" type="button" data-i18n="f.refreshModels">刷新模型列表</button></label>
-      <input class="control" id="model" list="model-list" data-i18n-ph="f.modelPh" autocomplete="off" spellcheck="false">
+      <div class="model-row">
+        <input class="control" id="model" list="model-list" data-i18n-ph="f.modelPh" autocomplete="off" spellcheck="false">
+        <select class="control model-pick" id="model-pick" data-i18n-aria="f.pick" title=""></select>
+      </div>
       <datalist id="model-list"></datalist>
     </div>
     <div class="field" id="mode-field">
@@ -411,6 +440,7 @@ table.cm td.diag { font-weight: 700; }
 
 <div id="vision-root" data-view="vision" hidden></div>
 <div id="train-root" data-view="train" hidden></div>
+<div id="decision-root" data-view="decision" hidden></div>
 
 <section class="card" data-view="text">
   <details class="debug" id="debug">
@@ -428,9 +458,11 @@ table.cm td.diag { font-weight: 700; }
 const I18N = {
   zh: {
     "title": "laya-opencv",
-    "view.aria": "功能", "view.text": "文本判定", "view.vision": "视觉检测", "view.train": "模型训练",
+    "view.aria": "功能", "view.text": "文本判定", "view.vision": "视觉检测", "view.train": "视觉训练", "view.decision": "决策训练",
     "f.target": "接口", "f.settings": "接口设置", "f.model": "模型（可直接输入自定义模型名）",
-    "f.refreshModels": "刷新模型列表", "f.modelPh": "留空 = 自动选择", "f.mode": "请求方式",
+    "f.refreshModels": "刷新模型列表", "f.modelPh": "留空 = 自动选择", "f.mode": "请求方式", "f.pick": "从列表里选模型",
+    "pick.empty": "留空（默认）", "pick.custom": "{id} — 自训练", "pick.active": "{id} — 自训练，当前默认", "pick.other": "{id}（手动输入）",
+    "hint.activeDefault": "留空 = 使用默认模型 {name}（自训练）。",
     "mode.single": "单条", "mode.batch": "批量（每行一条）",
     "adv.minConf": "置信度阈值", "adv.notSet": "不设置", "adv.default": "默认",
     "adv.note": "阈值填 0~1，低于它的答案会标成「低置信度」；max_len 只对本地 Laya 生效，长文档可调到 8192。",
@@ -487,7 +519,9 @@ const I18N = {
     "h.failed": "失败", "h.batch": "批量 {n} 条", "d.netErr": "网络错误",
     "s.connecting": "正在连接…", "s.offline": "未连接到工作台服务", "s.keySet": "密钥已设置", "s.keyMissing": "未设置密钥",
     "s.localReady": "本地 Laya 已就绪", "s.localDisabled": "本地 Laya 未启用", "s.localExited": "本地 Laya 已退出", "s.code": "（代码 {n}）",
-    "s.localLoading": "本地 Laya 模型加载中…",
+    "s.localLoading": "本地 Laya 模型加载中…", "s.localPaused": "模型服务已暂停：正在训练",
+    "hint.paused": "决策模型训练期间本地模型服务已暂停以释放显存，训练结束会自动恢复。进度在「决策训练」页。",
+    "p.localPaused": "模型服务已暂停：正在训练，训练结束后自动恢复",
     "hint.offline": "页面需要通过 start.bat / start.sh 启动后访问，直接打开 HTML 文件无法调用服务。",
     "hint.needKey": "模型「{model}」要走远程接口，点右上方的「接口设置」填写密钥。",
     "hint.via": "经本机转发到 {url}", "hint.backup": "，失败时自动改用 {names}",
@@ -534,9 +568,11 @@ const I18N = {
   },
   en: {
     "title": "laya-opencv",
-    "view.aria": "Section", "view.text": "Text decisions", "view.vision": "Visual inspection", "view.train": "Model training",
+    "view.aria": "Section", "view.text": "Text decisions", "view.vision": "Visual inspection", "view.train": "Vision training", "view.decision": "Decision training",
     "f.target": "Interface", "f.settings": "Interface settings", "f.model": "Model (any model name can be typed)",
-    "f.refreshModels": "Refresh model list", "f.modelPh": "Empty = choose automatically", "f.mode": "Request type",
+    "f.refreshModels": "Refresh model list", "f.modelPh": "Empty = choose automatically", "f.mode": "Request type", "f.pick": "Pick a model from the list",
+    "pick.empty": "empty (default)", "pick.custom": "{id} — trained here", "pick.active": "{id} — trained here, default", "pick.other": "{id} (typed)",
+    "hint.activeDefault": "Empty = the default model {name} (trained here).",
     "mode.single": "Single", "mode.batch": "Batch (one per line)",
     "adv.minConf": "Confidence threshold", "adv.notSet": "none", "adv.default": "default",
     "adv.note": "The threshold is between 0 and 1; answers below it are flagged as low confidence. max_len only applies to local Laya; raise it to 8192 for long documents.",
@@ -594,7 +630,9 @@ const I18N = {
     "h.failed": "failed", "h.batch": "Batch of {n}", "d.netErr": "network error",
     "s.connecting": "Connecting…", "s.offline": "Not connected to the workbench service", "s.keySet": "key saved", "s.keyMissing": "no key",
     "s.localReady": "Local Laya ready", "s.localDisabled": "Local Laya not enabled", "s.localExited": "Local Laya exited", "s.code": " (code {n})",
-    "s.localLoading": "Local Laya is loading the model…",
+    "s.localLoading": "Local Laya is loading the model…", "s.localPaused": "The model service is paused while a training job runs",
+    "hint.paused": "The local model service is paused to free GPU memory while a decision model trains; it restarts automatically afterwards. Progress is under Decision training.",
+    "p.localPaused": "The model service is paused while a training job runs; it resumes automatically afterwards",
     "hint.offline": "Open this page through start.bat / start.sh; opening the HTML file directly cannot reach the service.",
     "hint.needKey": "Model \"{model}\" goes to a remote interface. Add its key under Interface settings (top left).",
     "hint.via": "Forwarded by this machine to {url}", "hint.backup": "; falls back to {names} on failure",
@@ -750,7 +788,7 @@ const S = {
   debug: [],
   history: [],
   status: undefined,   // undefined = 还在连接，null = 连接失败
-  view: "text",        // text / vision / train
+  view: "text",        // text / vision / train / decision
   examples: [],
   exampleFile: null,   // 当前内容来自哪个示例文件
   exampleSnap: "",     // 载入示例时的内容，用来判断有没有被改过
@@ -761,7 +799,7 @@ try { S.history = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]") || []; }
 const TARGET_KEY = "laya-workbench-target";
 try { S.target = localStorage.getItem(TARGET_KEY) || "auto"; } catch (e) { S.target = "auto"; }
 const VIEW_KEY = "laya-workbench-view";
-try { const v = localStorage.getItem(VIEW_KEY); if (v === "vision" || v === "train") S.view = v; } catch (e) { /* 用默认视图 */ }
+try { const v = localStorage.getItem(VIEW_KEY); if (v === "vision" || v === "train" || v === "decision") S.view = v; } catch (e) { /* 用默认视图 */ }
 function applyView() {
   document.querySelectorAll("[data-view]").forEach(el => {
     if (el.parentElement && el.parentElement.id === "view") return;
@@ -770,9 +808,10 @@ function applyView() {
   for (const b of $("#view").children) b.setAttribute("aria-pressed", String(b.dataset.view === S.view));
   $("#mode-field").hidden = S.view !== "text";
   if (window.WBV) window.WBV.onView();
+  if (window.WBD) window.WBD.onView();
 }
 function setView(view) {
-  S.view = ["vision", "train"].includes(view) ? view : "text";
+  S.view = ["vision", "train", "decision"].includes(view) ? view : "text";
   try { localStorage.setItem(VIEW_KEY, S.view); } catch (e) { /* 记不住也没关系 */ }
   applyView();
 }
@@ -789,9 +828,29 @@ function pname(p) {
   if (p.local) return t("t.local");
   return LANG === "en" ? (p.name_en || p.name) : p.name;
 }
+/* 本项目训练出来的自定义决策模型名，由 /_wb/status 的 decision.custom_models 给出 */
+function customModels() { return (S.status && S.status.decision && S.status.decision.custom_models) || []; }
+function activeModel() { return (S.status && S.status.decision && S.status.decision.active) || ""; }
+/* 决策服务真正注册了的官方模型（config 的 decision_builtin）；和启动器的 served_builtins() 同一规则 */
+function servedBuiltins() {
+  const d = S.status && S.status.decision;
+  if (!d) return ["multilingual", "english", "typed-decisions"];
+  const names = String(d.builtin == null ? "multilingual" : d.builtin).split(",").map(x => x.trim()).filter(Boolean);
+  return names.length || customModels().length ? names : ["multilingual"];
+}
+/* 本地可选的模型：[{id, custom, active}] */
+function localModelChoices() {
+  const active = activeModel();
+  return servedBuiltins().map(id => ({ id: id, custom: false, active: false }))
+    .concat(customModels().map(id => ({ id: id, custom: true, active: id === active })));
+}
+function modelLabel(m) {
+  if (!m.custom) return m.id;
+  return t(m.active ? "pick.active" : "pick.custom", { id: m.id });
+}
 function isLayaModel(model) {
   const name = String(model || "").trim().toLowerCase();
-  return !name || LAYA_NAMES.includes(name) || name.startsWith("convaiinnovations/");
+  return !name || LAYA_NAMES.includes(name) || name.startsWith("convaiinnovations/") || customModels().some(m => String(m).toLowerCase() === name);
 }
 function usable(p) { return !!p && (p.local || p.has_key || p.key_optional); }
 function providers() { return (S.status && S.status.providers) || []; }
@@ -810,7 +869,7 @@ function autoBackups() {
   return order.slice(1);
 }
 function fitModelToTarget() {
-  if (S.target === "local" && !isLayaModel(S.model)) S.model = "multilingual";
+  if (S.target === "local" && !isLayaModel(S.model)) S.model = servedBuiltins()[0] || activeModel() || "";
   else if (S.target !== "auto" && S.target !== "local" && isLayaModel(S.model)) {
     const p = providerById(S.target);
     S.model = (p && p.default_model) || "jev-latest";
@@ -829,16 +888,31 @@ function renderTargets() {
   options.forEach(o => sel.append(h("option", { value: o[0] }, o[1])));
   sel.value = S.adding ? "__add" : S.target;
 }
+function modelChoices() {
+  const local = S.target === "local" || S.target === "auto" ? localModelChoices() : [];
+  let items;
+  if (S.modelOptions) {
+    items = S.modelOptions.map(id => local.find(m => m.id === id) || { id: id, custom: false, active: false });
+  } else {
+    items = local.slice();
+    if (S.target !== "local") items.push({ id: "jev-latest", custom: false, active: false });
+  }
+  return items;
+}
 function renderModelOptions() {
   const list = $("#model-list");
   list.textContent = "";
-  let items = S.modelOptions;
-  if (!items) {
-    items = [];
-    if (S.target === "local" || S.target === "auto") items.push("multilingual", "english", "typed-decisions");
-    if (S.target !== "local") items.push("jev-latest");
-  }
-  items.forEach(id => list.append(h("option", { value: id })));
+  const items = modelChoices();
+  items.forEach(m => list.append(h("option", m.custom ? { value: m.id, label: modelLabel(m) } : { value: m.id })));
+  const pick = $("#model-pick");
+  if (!pick) return;
+  pick.textContent = "";
+  pick.append(h("option", { value: "" }, t("pick.empty")));
+  items.forEach(m => pick.append(h("option", { value: m.id }, modelLabel(m))));
+  const current = S.model.trim();
+  if (current && !items.some(m => m.id === current)) pick.append(h("option", { value: current }, t("pick.other", { id: current })));
+  pick.value = current;
+  pick.title = t("f.pick");
 }
 async function refreshModels() {
   try {
@@ -1078,6 +1152,7 @@ function buildRequest() {
   if (dest.local && S.status && !S.status.ready) {
     if (S.status.service === "disabled") problems.push(t("p.localDisabled"));
     else if (S.status.service === "exited") problems.push(t("p.localExited"));
+    else if (S.status.service === "paused") problems.push(t("p.localPaused"));
   }
 
   if (S.mode === "batch") {
@@ -1473,6 +1548,8 @@ function renderStatus() {
     dot.className = "dot bad"; text.textContent = t("s.localDisabled");
   } else if (st.service === "exited") {
     dot.className = "dot bad"; text.textContent = t("s.localExited") + (st.exit_code != null ? t("s.code", { n: st.exit_code }) : "");
+  } else if (st.service === "paused") {
+    dot.className = "dot wait"; text.textContent = t("s.localPaused");
   } else {
     dot.className = "dot wait"; text.textContent = t("s.localLoading");
   }
@@ -1509,6 +1586,7 @@ function renderHint() {
       }
     } else if (st.service === "disabled") { cls = "hint bad"; msg = t("hint.localDisabled"); }
     else if (!st.ready && st.service === "exited") { cls = "hint bad"; msg = t("hint.localExited"); }
+    else if (!st.ready && st.service === "paused") { cls = "hint warn"; msg = t("hint.paused"); }
     else if (!st.ready) { cls = "hint warn"; msg = t("hint.loading"); }
     else {
       const loaded = (st.health && st.health.loaded) || [];
@@ -1516,7 +1594,8 @@ function renderHint() {
       const alias = { en: "english", laya: "english", "default": "english", ml: "multilingual", multi: "multilingual", "laya-multilingual": "multilingual",
         typed: "typed-decisions", typed_decisions: "typed-decisions", "laya-typed-decisions": "typed-decisions", decisions: "typed-decisions" };
       const name = alias[model] || model;
-      if (!model) { cls = "hint warn"; msg = t("hint.autoRoute"); }
+      if (!model && activeModel()) { msg = t("hint.activeDefault", { name: activeModel() }); }
+      else if (!model) { cls = "hint warn"; msg = t("hint.autoRoute"); }
       else if (!isLayaModel(model)) { cls = "hint warn"; msg = t("hint.notLaya", { model: S.model.trim() }); }
       else if (loaded.length && !loaded.includes(name) && !name.includes("/")) { cls = "hint warn"; msg = t("hint.notLoaded", { name: name }); }
       else msg = t("hint.addr", { url: st.laya_url });
@@ -1533,17 +1612,23 @@ async function pollStatus() {
   if (first && S.status && !LANG_CHOSEN && (S.status.language === "zh" || S.status.language === "en") && S.status.language !== LANG) {
     setLang(S.status.language, false);   // 没手动选过语言时，跟随 config.json / 系统语言
   }
-  if (first) { fitModelToTarget(); $("#model").value = S.model; renderModelOptions(); }
+  if (first) {
+    // 服务里没有注册 multilingual、却有自训练的默认模型时，初始值不该还是写死的 multilingual：留空就用默认模型
+    if (S.model === "multilingual" && S.status && !servedBuiltins().includes("multilingual") && activeModel()) S.model = "";
+    fitModelToTarget(); $("#model").value = S.model;
+  }
+  if (document.activeElement !== $("#model-pick")) renderModelOptions();
   if (document.activeElement !== $("#target")) renderTargets();
   renderStatus(); refresh();
   if (window.WBV) window.WBV.onStatus();
+  if (window.WBD) window.WBD.onStatus();
   if (S.settingsOpen && first) renderSettings();
   if (S.waiting) {
     if (S.status && S.status.ready) { S.waiting = false; run(); }
     else if (!S.status || S.status.service !== "starting") { S.waiting = false; refresh(); renderPanel(); }
   }
   clearTimeout(pollStatus.timer);
-  const waiting = S.status && !S.status.ready && S.status.service === "starting";
+  const waiting = S.status && !S.status.ready && (S.status.service === "starting" || S.status.service === "paused");
   pollStatus.timer = setTimeout(pollStatus, !S.status || waiting ? 2500 : 15000);
 }
 
@@ -1702,6 +1787,7 @@ function setLang(lang, persist) {
   applyStatic(); renderAll(); renderDebug();
   loadExamples();
   if (window.WBV) window.WBV.onLang();
+  if (window.WBD) window.WBD.onLang();
 }
 
 /* ---------- 事件 ---------- */
@@ -1714,7 +1800,12 @@ $("#lang").addEventListener("click", e => {
   if (lang && lang !== LANG) setLang(lang, true);
 });
 $("#mode").addEventListener("change", e => { S.mode = e.target.value; renderState(); refresh(); });
-$("#model").addEventListener("input", e => { S.model = e.target.value; refresh(); });
+$("#model").addEventListener("input", e => { S.model = e.target.value; refresh(); renderModelOptions(); if (window.WBV && window.WBV.onModel) window.WBV.onModel(); });
+$("#model-pick").addEventListener("change", e => {
+  S.model = e.target.value; $("#model").value = S.model;
+  refresh(); renderModelOptions();
+  if (window.WBV && window.WBV.onModel) window.WBV.onModel();
+});
 $("#target").addEventListener("change", e => {
   resetSettingsUi();
   if (e.target.value === "__add") {          // 不是真正的接口：打开「添加第三方接口」表单
@@ -1778,6 +1869,7 @@ $("#file").addEventListener("change", async e => {
 applyStatic(); renderAll(); renderDebug(); pollStatus(); loadExamples();
 </script>
 <script src="/_wb/vision.js"></script>
+<script src="/_wb/decision.js"></script>
 <script>applyView();</script>
 </body>
 </html>

@@ -19,10 +19,27 @@
   GET  /v1/vision/models                 模型列表
   POST /v1/vision/models/delete          删除模型   {name}
   POST /v1/vision/predict                用模型给一张图分类   {model, image}
+  POST /v1/vision/jobs/cancel            取消后台任务（训练子进程会被终止）   {id}
+
+目标检测（数据集 / 训练 / 推理，见 detect_data.py 和 detect_train.py；训练在子进程里跑，解析它的事件流）：
+  GET  /v1/vision/det/datasets           [{name, images, boxes, classes}]
+  POST /v1/vision/det/datasets/create    {name, classes}
+  POST /v1/vision/det/datasets/add       {name, image(dataURL), boxes:[{label, bbox:[x,y,w,h]}]}   像素坐标
+  POST /v1/vision/det/datasets/label     {name, file, boxes}
+  GET  /v1/vision/det/datasets/image     ?name=&file=[&thumb=96]
+  GET  /v1/vision/det/datasets/items     ?name=&offset=&limit=
+  POST /v1/vision/det/datasets/delete    {name, file?}
+  POST /v1/vision/det/datasets/demo      {scene, name, count}（后台任务）
+  POST /v1/vision/det/datasets/prelabel  {name, file, recipe}  用方案的分割区域生成候选框
+  POST /v1/vision/det/train              {dataset, name, arch, epochs, batch, imgsz, lr, holdout, pretrained, resume}（后台任务）
+  GET  /v1/vision/det/models             [{name, classes, arch, map50, created, ...}]
+  POST /v1/vision/det/models/delete      {name}
+  POST /v1/vision/det/predict            {model, image, conf} → {boxes, image(标注图 dataURL)}
 """
 import argparse
 import json
 import os
+import subprocess
 import sys
 import threading
 import time
@@ -39,16 +56,21 @@ except ImportError as error:                     # 没装视觉组件：让启�
     print("[vision] OpenCV / numpy not installed: %s" % error)
     raise SystemExit(3)
 
+import detect_data  # noqa: E402
 import vision_core  # noqa: E402
 import vision_demo  # noqa: E402
 import vision_train  # noqa: E402
 
+APP = os.path.dirname(os.path.abspath(__file__))
 MAX_BODY = 96 * 1024 * 1024
 JOBS = {}
 JOBS_LOCK = threading.Lock()
 WORK_LOCK = threading.Lock()                     # 训练和生成样本一次只跑一个
 ANALYZE_LOCK = threading.Lock()
 JOB_SEQ = [0]
+PROCS = {}                                       # job_id -> 正在跑的子进程（不进 JSON）
+DETECT_CLI = os.environ.get("LAYA_WB_DETECT_CLI") or os.path.join(APP, "detect_train.py")
+DETECT_DEVICE = os.environ.get("LAYA_WB_DETECT_DEVICE") or "auto"
 
 
 class ApiError(Exception):
@@ -60,15 +82,21 @@ class ApiError(Exception):
 
 # ----------------------------------------------------------------- 后台任务
 
-def start_job(kind, func):
+class Cancelled(Exception):
+    pass
+
+
+def start_job(kind, func, with_job=False):
+    """起一个后台任务。func(progress) 或（with_job=True 时）func(progress, job)；同类任务排队，一次只跑一个。"""
     with JOBS_LOCK:
         JOB_SEQ[0] += 1
         job_id = "%s-%d" % (kind, JOB_SEQ[0])
         job = {"id": job_id, "kind": kind, "state": "queued", "stage": "", "progress": 0.0, "error": None,
-               "result": None, "started": time.time(), "seconds": 0.0}
+               "result": None, "started": time.time(), "seconds": 0.0, "cancel": False}
         JOBS[job_id] = job
         for old in sorted(JOBS, key=lambda k: JOBS[k]["started"])[:-30]:      # 只保留最近 30 个
-            JOBS.pop(old, None)
+            if JOBS[old]["state"] not in ("queued", "running"):
+                JOBS.pop(old, None)
 
     def progress(stage, done):
         job["stage"], job["progress"] = stage, round(float(done), 3)
@@ -76,20 +104,96 @@ def start_job(kind, func):
 
     def runner():
         with WORK_LOCK:
+            if job["cancel"]:
+                job["state"] = "cancelled"
+                return
             job["state"] = "running"
             try:
-                job["result"] = func(progress)
+                job["result"] = func(progress, job) if with_job else func(progress)
                 job["state"] = "done"
                 job["progress"] = 1.0
+            except Cancelled:
+                job["state"] = "cancelled"
             except (vision_train.TrainError, vision_core.VisionError, ValueError) as error:
                 job["state"], job["error"] = "error", str(error)
             except Exception as error:              # 没预料到的错误：留下堆栈方便排查
                 traceback.print_exc()
                 job["state"], job["error"] = "error", "%s: %s" % (type(error).__name__, error)
             job["seconds"] = round(time.time() - job["started"], 1)
+            PROCS.pop(job["id"], None)
 
     threading.Thread(target=runner, daemon=True).start()
     return job
+
+
+def cancel_job(job_id):
+    with JOBS_LOCK:
+        job = JOBS.get(job_id)
+    if job is None:
+        raise ApiError(404, "unknown job")
+    if job["state"] in ("queued", "running"):
+        job["cancel"] = True
+        proc = PROCS.get(job_id)
+        if proc is not None and proc.poll() is None:
+            proc.terminate()
+    return job
+
+
+def run_cli_job(job, args, progress, log_lines=40):
+    """跑 detect_train.py 这类子进程，把 stdout 的 JSON 事件流写进任务。返回 result 事件的内容。"""
+    job.update(epoch=None, epochs=None, step=None, steps=None, loss=None, eta_seconds=None, log_tail=[])
+    env = dict(os.environ)
+    env["PYTHONUNBUFFERED"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
+    proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, cwd=os.path.dirname(APP))
+    PROCS[job["id"]] = proc
+    if job["cancel"]:
+        proc.terminate()
+    stderr_tail = []
+
+    def drain():
+        for raw in proc.stderr:
+            text = raw.decode("utf-8", "replace").rstrip()
+            if text:
+                stderr_tail.append(text)
+                del stderr_tail[:-20]
+    drainer = threading.Thread(target=drain, daemon=True)
+    drainer.start()
+
+    result, error = None, None
+    for raw in proc.stdout:
+        line = raw.decode("utf-8", "replace").strip()
+        if not line:
+            continue
+        try:
+            event = json.loads(line)
+        except ValueError:
+            event = {"event": "log", "message": line}
+        kind = event.get("event")
+        if kind == "progress":
+            progress(event.get("stage") or job["stage"], event.get("progress") or job["progress"])
+            for key in ("epoch", "epochs", "step", "steps", "loss", "eta_seconds"):
+                if event.get(key) is not None:
+                    job[key] = event[key]
+        elif kind == "log":
+            job["log_tail"] = (job["log_tail"] + [str(event.get("message", ""))])[-log_lines:]
+        elif kind == "oom":
+            job["log_tail"] = (job["log_tail"] + ["oom: retry %s, batch %s" % (event.get("retry"), event.get("batch"))])[-log_lines:]
+        elif kind == "result":
+            result = {k: v for k, v in event.items() if k != "event"}
+        elif kind == "error":
+            error = event
+    code = proc.wait()
+    drainer.join(5)
+    proc.stdout.close()
+    proc.stderr.close()
+    if job["cancel"]:
+        raise Cancelled()
+    if error is not None:
+        raise vision_train.TrainError(str(error.get("message") or "training failed"))
+    if code != 0 or result is None:
+        raise vision_train.TrainError("subprocess exited with code %s: %s" % (code, " | ".join(stderr_tail[-3:])[-400:]))
+    return result
 
 
 def make_demo_dataset(scene, dataset, per_class, progress):
@@ -115,7 +219,11 @@ def backbone_urls():
 def health():
     return {"status": "ok", "opencv": cv2.__version__, "has_ml": vision_train.HAS_ML, "backbone": vision_train.backbone_info(),
             "features": list(vision_train.FEATURES), "algos": list(vision_train.ALGOS),
-            "scenes": {name: list(item[1]) for name, item in vision_demo.SCENES.items()}}
+            "scenes": {name: list(item[1]) for name, item in vision_demo.SCENES.items()},
+            "detect": dict(detect_data.detect_info(), archs=list(DET_ARCHS), device=DETECT_DEVICE)}
+
+
+DET_ARCHS = ("ssdlite", "fasterrcnn_mobile")
 
 
 def api_analyze(body):
@@ -127,7 +235,7 @@ def api_analyze(body):
     inputs = body.get("inputs") if isinstance(body.get("inputs"), dict) else {}
     with ANALYZE_LOCK:
         return vision_core.analyze(recipe, body["image"], models=vision_train.get_model, inputs=inputs,
-                                   want_image=body.get("annotate", True))
+                                   want_image=body.get("annotate", True), detectors=detect_data.get_detector)
 
 
 def api_add(body):
@@ -219,7 +327,134 @@ def api_delete_model(body):
     return {"models": vision_train.list_models()}
 
 
+# ----------------------------------------------------------------- 目标检测
+
+def _boxes(body):
+    boxes = body.get("boxes")
+    if boxes is None:
+        return []
+    if not isinstance(boxes, list):
+        raise ApiError(400, "'boxes' must be a list of {label, bbox:[x, y, w, h]}")
+    return boxes
+
+
+def api_det_create(body):
+    classes = body.get("classes")
+    if isinstance(classes, str):
+        classes = [c for c in classes.replace("，", ",").split(",")]
+    return detect_data.create(body.get("name"), classes if isinstance(classes, list) else [])
+
+
+def api_det_add(body):
+    img = vision_core.decode_image(body.get("image"))
+    size = body.get("size")
+    if isinstance(size, (list, tuple)) and len(size) == 2 and size[0] and size[1]:   # 前端按它自己看到的尺寸画框：不一致时换算
+        sx, sy = img.shape[1] / float(size[0]), img.shape[0] / float(size[1])
+        if abs(sx - 1) > 1e-6 or abs(sy - 1) > 1e-6:
+            boxes = []
+            for item in _boxes(body):
+                if isinstance(item, dict) and isinstance(item.get("bbox"), list):
+                    x, y, w, h = item["bbox"][:4]
+                    boxes.append(dict(item, bbox=[x * sx, y * sy, w * sx, h * sy]))
+            body = dict(body, boxes=boxes)
+    saved = detect_data.add_image(body.get("name"), img, _boxes(body))
+    saved["dataset"] = detect_data.describe(body.get("name"))
+    return saved
+
+
+def api_det_label(body):
+    return detect_data.set_labels(body.get("name"), body.get("file"), _boxes(body))
+
+
+def api_det_delete(body):
+    detect_data.delete(body.get("name"), body.get("file"))
+    return {"datasets": detect_data.list_datasets()}
+
+
+def api_det_demo(body):
+    scene = body.get("scene")
+    if scene not in vision_demo.SCENES:
+        raise ApiError(400, "unknown scene '%s'" % scene)
+    name = body.get("name") or ("demo-" + scene)
+    count = int(body.get("count") or 40)
+    return start_job("det-dataset", lambda progress: detect_data.make_demo(scene, name, count, int(body.get("seed") or 1000), progress))
+
+
+def api_det_prelabel(body):
+    with ANALYZE_LOCK:
+        return detect_data.prelabel(body.get("name"), body.get("file"), body.get("recipe"), models=vision_train.get_model,
+                                    detectors=detect_data.get_detector)
+
+
+def api_det_train(body):
+    dataset = vision_train.safe_name(body.get("dataset"))
+    name = vision_train.safe_name(body.get("name") or dataset)
+    if not dataset or not name:
+        raise ApiError(400, "'dataset' and 'name' are required")
+    folder = detect_data.dataset_dir(dataset, must_exist=True)
+    info = detect_data.detect_info()
+    if not info["available"]:
+        raise ApiError(422, "目标检测训练需要 torch 和 torchvision（%s）/ detection training needs torch and torchvision (%s)" % (info["reason"], info["reason"]))
+    arch = body.get("arch") or "ssdlite"
+    if arch not in DET_ARCHS:
+        raise ApiError(400, "unknown arch '%s'" % arch)
+    out = detect_data.model_dir(name)
+    args = [sys.executable, DETECT_CLI, "train", "--dataset", folder, "--out", out, "--arch", arch,
+            "--epochs", str(int(body.get("epochs") or 20)), "--batch", str(int(body.get("batch") or 8)),
+            "--imgsz", str(int(body.get("imgsz") or 320)), "--lr", str(float(body.get("lr") or 0.01)),
+            "--holdout", str(float(body.get("holdout", 0.15))), "--pretrained", str(body.get("pretrained") or "auto"),
+            "--device", str(body.get("device") or DETECT_DEVICE)]
+    if body.get("resume"):
+        args.append("--resume")
+
+    def work(progress, job):
+        result = run_cli_job(job, args, progress)
+        detect_data._CACHE.clear()
+        result["name"] = name
+        return result
+    job = start_job("det-train", work, with_job=True)
+    job["model"] = name
+    return job
+
+
+def api_det_delete_model(body):
+    detect_data.delete_model(body.get("name"))
+    return {"models": detect_data.list_models()}
+
+
+def api_det_predict(body):
+    name = body.get("model")
+    folder = detect_data.model_dir(name)
+    if not folder or not os.path.isfile(os.path.join(folder, "meta.json")):
+        raise ApiError(404, "detection model '%s' has not been trained" % name)
+    info = detect_data.detect_info()
+    if not info["available"]:
+        raise ApiError(422, "目标检测推理需要 torch 和 torchvision（%s）/ detection needs torch and torchvision (%s)" % (info["reason"], info["reason"]))
+    img = vision_core.decode_image(body.get("image"))
+    img, _ = vision_core.resize_max(img, int(body.get("max_side") or 1280))
+    detector = detect_data.get_detector(name)
+    boxes = detector.predict(img, float(body.get("conf", 0.4)), body.get("classes") or None)
+    out = {"boxes": boxes, "width": int(img.shape[1]), "height": int(img.shape[0]), "classes": detector.classes}
+    if body.get("annotate", True):
+        out["image"] = vision_core.data_url(detect_data.draw_boxes(img, boxes))
+    return out
+
+
+def api_cancel(body):
+    return cancel_job(str(body.get("id") or ""))
+
+
 POST = {
+    "/v1/vision/jobs/cancel": api_cancel,
+    "/v1/vision/det/datasets/create": api_det_create,
+    "/v1/vision/det/datasets/add": api_det_add,
+    "/v1/vision/det/datasets/label": api_det_label,
+    "/v1/vision/det/datasets/delete": api_det_delete,
+    "/v1/vision/det/datasets/demo": api_det_demo,
+    "/v1/vision/det/datasets/prelabel": api_det_prelabel,
+    "/v1/vision/det/train": api_det_train,
+    "/v1/vision/det/models/delete": api_det_delete_model,
+    "/v1/vision/det/predict": api_det_predict,
     "/v1/vision/analyze": api_analyze,
     "/v1/vision/datasets/add": api_add,
     "/v1/vision/datasets/add_regions": api_add_regions,
@@ -285,6 +520,18 @@ class Handler(BaseHTTPRequestHandler):
                 if data is None:
                     return self._json(404, {"detail": "not found"})
                 return self._send(200, data, "image/jpeg")
+            if path == "/v1/vision/det/datasets":
+                return self._json(200, {"datasets": detect_data.list_datasets()})
+            if path == "/v1/vision/det/datasets/items":
+                return self._json(200, detect_data.items(query.get("name"), query.get("offset") or 0, query.get("limit") or 60))
+            if path == "/v1/vision/det/datasets/image":
+                thumb = int(query.get("thumb") or 0)
+                data, ctype = detect_data.image_bytes(query.get("name"), query.get("file"), 96 if thumb == 1 else thumb)
+                if data is None:
+                    return self._json(404, {"detail": "not found"})
+                return self._send(200, data, ctype)
+            if path == "/v1/vision/det/models":
+                return self._json(200, {"models": detect_data.list_models()})
         except (vision_train.TrainError, vision_core.VisionError, ValueError) as error:
             return self._json(400, {"detail": str(error)})
         self._json(404, {"detail": "not found"})

@@ -40,6 +40,12 @@ Object.assign(I18N.zh, {
   "v.st.explain": "「只给数值」一列反映模型自己比较数字的能力；「带比较结论」一列反映它能否读懂写好的结论。一致率低于 {th} 的题目应保持规则裁决（方案里 bindings 的默认设置）。",
   "v.st.misses": "带比较结论时仍答错的用例", "v.st.expected": "应为 {a}，模型答 {b}", "v.st.fail": "自检失败：{msg}",
   "v.export": "导出微调数据（JSONL）", "v.exportNote": "内容是自检用例（答案来自规则）加上人工复核记录，每行一条 {state, questions, gold}。",
+  "vm.title": "模型", "vm.decision": "决策模型", "vm.classifier": "区域分类模型", "vm.detector": "检测模型", "vm.group": "应用到区域组", "vm.outGroup": "输出区域组名", "vm.conf": "置信度",
+  "vm.addCount": "同时添加计数测量项", "vm.add": "加入方案", "vm.remove": "移除", "vm.loading": "正在读取模型列表…", "vm.goTrain": "去训练",
+  "vm.noCls": "还没有训练好的分类模型，去「视觉训练 → 区域分类」训练", "vm.noDet": "还没有训练好的检测模型，去「视觉训练 → 目标检测」训练", "vm.noGroups": "这个方案里还没有区域组（先加 regions 或 detect 步骤）",
+  "vm.added": "已加入，点「检测」生效；要长期保留请「另存为我的方案」", "vm.removed": "已移除，点「检测」生效；要长期保留请「另存为我的方案」",
+  "vm.inRecipe": "方案里的模型步骤：", "vm.stepClassify": "classify  {m}  →  regions:{g}", "vm.stepDetect": "detect  {m}  →  regions:{g}", "vm.countLabel": "{g} 数量",
+  "vm.note": "决策模型就是页面顶部「模型」框里的那个；分类 / 检测模型来自「视觉训练」页，加进方案后由视觉服务在分析时调用。",
   "v.yes": "是", "v.no": "否",
   "demo.ripe": "成熟", "demo.turning": "转色", "demo.unripe": "未熟", "demo.blemished": "有病斑", "demo.clean": "无草", "demo.light": "少量杂草", "demo.heavy": "杂草多",
   "demo.low": "虫少", "demo.medium": "中等", "demo.high": "虫多", "demo.ok": "完好", "demo.minor": "轻微缺陷", "demo.reject": "严重缺陷",
@@ -60,7 +66,30 @@ Object.assign(I18N.zh, {
   "t.th.class": "类别", "t.th.n": "样本", "t.th.recall": "召回率", "t.th.precision": "精确率", "t.cm": "混淆矩阵（行 = 真实类别，列 = 识别结果）",
   "t.models": "已训练的模型", "t.noModels": "还没有模型", "t.modelMeta": "{classes} 类　{feats}　{algo}　准确率 {acc}　{time}", "t.delModel": "删除",
   "t.test": "试一张图", "t.testResult": "识别为「{label}」，概率 {p}", "t.useNote": "在检测方案的 pipeline 里加一步 {\"op\": \"classify\", \"model\": \"模型名字\", \"on\": \"regions:区域名\"} 就能用它给区域分类。",
-  "t.synthNote": "合成样本比真实照片干净得多，在它上面得到的准确率不代表真实场景的表现。"
+  "t.synthNote": "合成样本比真实照片干净得多，在它上面得到的准确率不代表真实场景的表现。",
+  "t.stage.prepare": "读取数据", "t.stage.train": "训练", "t.stage.evaluate": "评估", "t.stage.save": "保存",
+  "det.tab.cls": "区域分类", "det.tab.det": "目标检测",
+  "det.env.ready": "检测训练环境就绪：torch {t}，torchvision {tv}，设备 {dev}", "det.env.missing": "没有安装 torch / torchvision（{why}），不能训练和使用检测模型。重新运行安装脚本并在 config.json 里开启 install_training 即可补装；数据集标注不受影响。",
+  "det.intro": "目标检测模型能在一张图里框出每个目标并标出类别，适合目标数量多、形状不规则、靠分割难以分开的场景。流程：建数据集 → 画框标注（或用方案预标注、合成样本）→ 训练 → 在方案的 pipeline 里加一步 detect。",
+  "det.datasets": "检测数据集", "det.newName": "新数据集的名字", "det.newClasses": "类别，逗号分隔（可留空，标注时再加）", "det.create": "新建", "det.noDataset": "还没有检测数据集。新建一个，或生成一份合成样本看看流程。",
+  "det.meta": "{n} 张图　{b} 个框　类别：{c}", "det.noClasses": "（还没有类别）", "det.delDataset": "删除数据集", "det.confirm": "确认删除", "det.needName": "请先填写名字",
+  "det.demoGen": "生成合成样本", "det.demoCount": "张数", "det.generating": "正在生成…", "det.generated": "已生成检测数据集「{name}」：{n} 张图，{b} 个框。",
+  "det.items": "已标注的图片", "det.itemsCount": "共 {n} 张，显示 {a}–{b}", "det.prevPage": "上一页", "det.nextPage": "下一页", "det.noItems": "这个数据集还没有图片。在下面的标注器里选一张图开始画框。",
+  "det.labeler": "标注器", "det.pick": "选择图片", "det.drop": "点击选择图片，或把图片拖到这里、直接粘贴；也可以点上面的缩略图打开已有的图", "det.dropSmall": "在图上拖动鼠标画框；点一个框选中它，按 Delete 删除",
+  "det.cls": "当前类别", "det.newClass": "新类别名", "det.addClass": "添加", "det.needClass": "请先选择或添加一个类别", "det.boxCls": "选中框的类别", "det.delBox": "删除选中的框", "det.clear": "清空所有框",
+  "det.boxes": "{n} 个框", "det.save": "保存标注", "det.saved": "已保存", "det.unsaved": "有未保存的修改", "det.saveFirst": "先保存这张图到数据集，再用方案预标注",
+  "det.prev": "上一张", "det.next": "下一张", "det.delImage": "从数据集删除这张图", "det.prelabel": "从方案预标注", "det.prelabelHint": "用方案里的分割 / 识别步骤给出候选框，再手动修正。方案里的识别模型没训练时，框的类别是区域名。",
+  "det.prelabeled": "预标注得到 {n} 个候选框，请检查后保存", "det.recipe": "方案", "det.imgFail": "图片读取失败：{msg}",
+  "det.train": "训练检测模型", "det.modelName": "模型名字", "det.arch": "网络", "det.arch.ssdlite": "SSDLite · MobileNetV3（快，推荐，4G 显存够）", "det.arch.fasterrcnn_mobile": "Faster R-CNN · MobileNetV3 320（略准、略慢）",
+  "det.epochs": "轮数", "det.batch": "批大小", "det.imgsz": "输入尺寸", "det.pretrained": "预训练权重", "det.pre.auto": "自动（下载不到就从头训练）", "det.pre.yes": "必须用（下载不到就报错）", "det.pre.no": "不用（从头训练）",
+  "det.holdout": "留出验证比例", "det.resume": "从上次断点继续", "det.start": "开始训练", "det.training": "训练中…", "det.cancel": "取消", "det.cancelled": "已取消", "det.needDataset": "请先选择数据集", "det.needBoxes": "数据集里还没有标注框",
+  "det.progress": "第 {e}/{es} 轮　步 {s}/{ss}　损失 {l}　预计剩余 {eta}", "det.log": "日志", "det.fail": "训练失败：{msg}",
+  "det.result": "训练结果", "det.map": "mAP@0.5（留出集）", "det.mapNone": "没有留出验证集，未评估", "det.resultNote": "{n} 轮，{tr} 张训练图，{ho} 张验证图，用时 {s} 秒{pre}。", "det.preUsed": "，用了预训练权重", "det.preNo": "，从头训练",
+  "det.th.class": "类别", "det.th.ap": "AP@0.5", "det.oomNote": "训练中显存不足 {n} 次，批大小自动降到 {b}。",
+  "det.models": "检测模型", "det.noModels": "还没有检测模型", "det.modelMeta": "{arch}　{n} 类　mAP@0.5 {m}　{time}", "det.test": "试一张图", "det.testResult": "检出 {n} 个目标（置信度 ≥ {c}）", "det.delModel": "删除",
+  "det.useNote": "在检测方案的 pipeline 里加一步 {\"op\": \"detect\", \"model\": \"模型名字\", \"conf\": 0.4, \"as\": \"regions:objects\"} 就能用它框出目标；后面的 count / class_count / measure 步骤照常引用 regions。可用 \"classes\": [\"weed\"] 只保留某几类。",
+  "det.synthNote": "合成样本比真实照片干净得多，在它上面的 mAP 不代表真实场景的表现；要在真实场景使用，请用自己拍的图标注后训练。",
+  "det.conf": "置信度阈值"
 });
 Object.assign(I18N.en, {
   "v.recipes": "Recipes:", "v.noRecipes": "No inspection recipes in the recipes folder", "v.custom": " (custom)",
@@ -99,6 +128,12 @@ Object.assign(I18N.en, {
   "v.st.explain": "\"Bare numbers\" shows how well the model compares numbers by itself; \"With comparisons\" shows whether it can read conclusions that are already written out. Questions below {th} agreement should stay rule-decided (the default in the recipe's bindings).",
   "v.st.misses": "Cases still answered wrong with comparisons", "v.st.expected": "expected {a}, model said {b}", "v.st.fail": "Self-test failed: {msg}",
   "v.export": "Export fine-tuning data (JSONL)", "v.exportNote": "Contains the self-test cases (answers come from the rules) plus human review records, one {state, questions, gold} per line.",
+  "vm.title": "Models", "vm.decision": "Decision model", "vm.classifier": "Region classifier", "vm.detector": "Detector", "vm.group": "apply to regions", "vm.outGroup": "output regions", "vm.conf": "confidence",
+  "vm.addCount": "also add a count measurement", "vm.add": "Add to recipe", "vm.remove": "Remove", "vm.loading": "Loading model lists…", "vm.goTrain": "Go to training",
+  "vm.noCls": "No trained classifier yet; train one under Vision training → Region classification", "vm.noDet": "No trained detector yet; train one under Vision training → Object detection", "vm.noGroups": "This recipe has no regions group yet (add a regions or detect step first)",
+  "vm.added": "Added; press Inspect to use it. Use \"Save as my recipe\" to keep it", "vm.removed": "Removed; press Inspect to use it. Use \"Save as my recipe\" to keep it",
+  "vm.inRecipe": "Model steps in this recipe:", "vm.stepClassify": "classify  {m}  →  regions:{g}", "vm.stepDetect": "detect  {m}  →  regions:{g}", "vm.countLabel": "{g} count",
+  "vm.note": "The decision model is the one in the Model box at the top of the page; classifiers and detectors come from the Vision training page and are run by the vision service during analysis once added to the recipe.",
   "v.yes": "Yes", "v.no": "No",
   "demo.ripe": "ripe", "demo.turning": "turning", "demo.unripe": "unripe", "demo.blemished": "blemished", "demo.clean": "no weeds", "demo.light": "few weeds", "demo.heavy": "many weeds",
   "demo.low": "few insects", "demo.medium": "moderate", "demo.high": "many insects", "demo.ok": "sound", "demo.minor": "minor defects", "demo.reject": "severe defects",
@@ -119,7 +154,30 @@ Object.assign(I18N.en, {
   "t.th.class": "Class", "t.th.n": "Samples", "t.th.recall": "Recall", "t.th.precision": "Precision", "t.cm": "Confusion matrix (rows = actual class, columns = prediction)",
   "t.models": "Trained models", "t.noModels": "No models yet", "t.modelMeta": "{classes} classes, {feats}, {algo}, accuracy {acc}, {time}", "t.delModel": "Delete",
   "t.test": "Try an image", "t.testResult": "Recognised as \"{label}\", probability {p}", "t.useNote": "Add a step {\"op\": \"classify\", \"model\": \"model name\", \"on\": \"regions:region name\"} to a recipe's pipeline to classify regions with it.",
-  "t.synthNote": "Synthetic samples are far cleaner than real photos; accuracy on them says nothing about real-world performance."
+  "t.synthNote": "Synthetic samples are far cleaner than real photos; accuracy on them says nothing about real-world performance.",
+  "t.stage.prepare": "reading data", "t.stage.train": "training", "t.stage.evaluate": "evaluating", "t.stage.save": "saving",
+  "det.tab.cls": "Region classification", "det.tab.det": "Object detection",
+  "det.env.ready": "Detection training ready: torch {t}, torchvision {tv}, device {dev}", "det.env.missing": "torch / torchvision are not installed ({why}), so detection models cannot be trained or used. Run the installer again with install_training enabled in config.json; dataset labelling still works.",
+  "det.intro": "An object detector draws a box around every target in an image and names its class. It suits scenes with many, irregular targets that segmentation cannot separate. Flow: create a dataset, draw boxes (or pre-label from a recipe / generate synthetic samples), train, then add a detect step to a recipe's pipeline.",
+  "det.datasets": "Detection datasets", "det.newName": "Name of the new dataset", "det.newClasses": "Classes, comma separated (optional; add while labelling)", "det.create": "Create", "det.noDataset": "No detection datasets yet. Create one, or generate synthetic samples to see the flow.",
+  "det.meta": "{n} images, {b} boxes, classes: {c}", "det.noClasses": "(no classes yet)", "det.delDataset": "Delete dataset", "det.confirm": "Confirm delete", "det.needName": "Enter a name first",
+  "det.demoGen": "Generate synthetic samples", "det.demoCount": "Images", "det.generating": "Generating…", "det.generated": "Detection dataset \"{name}\" generated: {n} images, {b} boxes.",
+  "det.items": "Labelled images", "det.itemsCount": "{n} in total, showing {a}–{b}", "det.prevPage": "Previous page", "det.nextPage": "Next page", "det.noItems": "This dataset has no images yet. Choose an image in the labeller below and start drawing boxes.",
+  "det.labeler": "Labeller", "det.pick": "Choose image", "det.drop": "Click to choose an image, drop one here or paste it; or click a thumbnail above to open an existing image", "det.dropSmall": "Drag on the image to draw a box; click a box to select it, press Delete to remove it",
+  "det.cls": "Current class", "det.newClass": "New class name", "det.addClass": "Add", "det.needClass": "Choose or add a class first", "det.boxCls": "Class of the selected box", "det.delBox": "Delete selected box", "det.clear": "Clear all boxes",
+  "det.boxes": "{n} boxes", "det.save": "Save labels", "det.saved": "Saved", "det.unsaved": "unsaved changes", "det.saveFirst": "Save this image to the dataset first, then pre-label from a recipe",
+  "det.prev": "Previous", "det.next": "Next", "det.delImage": "Remove this image from the dataset", "det.prelabel": "Pre-label from recipe", "det.prelabelHint": "Uses the recipe's segmentation / classification steps to propose boxes, which you then correct by hand. If the recipe's recognition model is not trained, boxes are labelled with the region name.",
+  "det.prelabeled": "Pre-labelling proposed {n} boxes; check them and save", "det.recipe": "Recipe", "det.imgFail": "Could not read the image: {msg}",
+  "det.train": "Train a detector", "det.modelName": "Model name", "det.arch": "Network", "det.arch.ssdlite": "SSDLite · MobileNetV3 (fast, recommended, fits 4 GB)", "det.arch.fasterrcnn_mobile": "Faster R-CNN · MobileNetV3 320 (a bit more accurate, slower)",
+  "det.epochs": "Epochs", "det.batch": "Batch size", "det.imgsz": "Input size", "det.pretrained": "Pretrained weights", "det.pre.auto": "auto (train from scratch if the download fails)", "det.pre.yes": "required (fail if the download fails)", "det.pre.no": "none (train from scratch)",
+  "det.holdout": "Holdout fraction", "det.resume": "Resume from the last checkpoint", "det.start": "Start training", "det.training": "Training…", "det.cancel": "Cancel", "det.cancelled": "Cancelled", "det.needDataset": "Choose a dataset first", "det.needBoxes": "The dataset has no boxes yet",
+  "det.progress": "epoch {e}/{es}, step {s}/{ss}, loss {l}, about {eta} left", "det.log": "Log", "det.fail": "Training failed: {msg}",
+  "det.result": "Training result", "det.map": "mAP@0.5 (holdout)", "det.mapNone": "No holdout set; not evaluated", "det.resultNote": "{n} epochs, {tr} training images, {ho} holdout images, {s} s{pre}.", "det.preUsed": ", with pretrained weights", "det.preNo": ", from scratch",
+  "det.th.class": "Class", "det.th.ap": "AP@0.5", "det.oomNote": "Ran out of memory {n} times; batch size was reduced to {b}.",
+  "det.models": "Detection models", "det.noModels": "No detection models yet", "det.modelMeta": "{arch}, {n} classes, mAP@0.5 {m}, {time}", "det.test": "Try an image", "det.testResult": "{n} objects detected (confidence ≥ {c})", "det.delModel": "Delete",
+  "det.useNote": "Add a step {\"op\": \"detect\", \"model\": \"model name\", \"conf\": 0.4, \"as\": \"regions:objects\"} to a recipe's pipeline to detect objects with it; later count / class_count / measure steps use the regions as usual. \"classes\": [\"weed\"] keeps only some classes.",
+  "det.synthNote": "Synthetic samples are far cleaner than real photos; mAP on them says nothing about real-world performance. For real use, label your own photos and train on them.",
+  "det.conf": "Confidence threshold"
 });
 
 /* ---------- 状态 ---------- */
@@ -314,7 +372,7 @@ async function prepareModel() {
   V.preparing = false;
   if (job.state === "done") {
     V.prepareMsg = { cls: "ok", text: t("v.prepared", { acc: pct(job.result.model.metrics.accuracy) }) + (LANG === "en" ? " " : "") + t("t.synthNote") };
-    TR.loaded = false;
+    TR.loaded = false; VM.loaded = false;
     if (V.image) return runInspect();
   } else V.prepareMsg = { cls: "bad", text: t("v.prepareFail", { msg: job.error || "" }) };
   renderResult();
@@ -344,6 +402,147 @@ async function addRegions(group) {
   const r = recipe() || {};
   const res = await jpost("/v1/vision/datasets/add_regions", { dataset: V.addDataset.trim(), label: V.addLabel.trim(), image: V.image, boxes: boxes, max_side: r.max_side || 1280 });
   if (res.ok) { toast(t("v.added", { n: res.data.saved })); V.picked = {}; TR.loaded = false; renderResult(); } else toast(errText(res));
+}
+
+/* ---------- 视觉检测页的「模型」卡：选决策模型、把训练好的分类 / 检测模型加进方案 ---------- */
+const VM = { loaded: false, loading: false, cls: [], det: [], clsModel: "", clsGroup: "", detModel: "", detGroup: "", detConf: "0.4", detCount: true, touched: false };
+async function loadVisionModels() {
+  if (!visionReady() || VM.loading) return;
+  VM.loading = true;
+  const [a, b] = await Promise.all([jget("/v1/vision/models"), jget("/v1/vision/det/models")]);
+  VM.cls = a.ok ? a.data.models : [];
+  VM.det = b.ok ? b.data.models : [];
+  VM.loaded = true; VM.loading = false;
+  if (!VM.cls.some(m => m.name === VM.clsModel)) VM.clsModel = VM.cls.length ? VM.cls[0].name : "";
+  if (!VM.det.some(m => m.name === VM.detModel)) { VM.detModel = VM.det.length ? VM.det[0].name : ""; VM.touched = false; }
+  if (S.view === "vision") renderVision();
+}
+function invalidateVisionModels() { VM.loaded = false; if (S.view === "vision") loadVisionModels(); }
+/* 一步产出的区域组名：regions 的 name；detect 的 as（regions:名字）/ into / name，默认 objects；classify on=tiles 的 into */
+function stepGroup(step) {
+  if (!step || typeof step !== "object") return null;
+  if (step.op === "regions") return step.name || null;
+  if (step.op === "detect") {
+    const target = String(step.as || step.into || step.name || "objects");
+    return target.indexOf("regions:") === 0 ? target.slice(8) : target;
+  }
+  if (step.op === "classify" && step.on === "tiles") return step.into || step.name || step.model || null;
+  return null;
+}
+function recipeGroups(r) {
+  const out = [];
+  ((r && r.pipeline) || []).forEach((step, i) => { const g = stepGroup(step); if (g && !out.some(x => x.name === g)) out.push({ name: g, index: i, op: step.op }); });
+  return out;
+}
+function groupName(text) { return String(text || "").trim().replace(/[^\w一-鿿-]+/g, "_").replace(/^_+|_+$/g, ""); }
+function applyRecipeObject(obj, text) {
+  V.applied = obj; V.text = pretty(obj); V.msg = { cls: "ok", text: text };
+  toast(text); renderVision();
+}
+function addClassifyStep() {
+  const r = recipe();
+  if (!r || !VM.clsModel || !VM.clsGroup) return;
+  const obj = JSON.parse(JSON.stringify(r));
+  obj.pipeline = (obj.pipeline || []).filter(s => !(s && s.op === "classify" && s.on === "regions:" + VM.clsGroup));
+  const at = obj.pipeline.findIndex(s => stepGroup(s) === VM.clsGroup);
+  obj.pipeline.splice(at < 0 ? obj.pipeline.length : at + 1, 0, { op: "classify", model: VM.clsModel, on: "regions:" + VM.clsGroup });
+  applyRecipeObject(obj, t("vm.added"));
+}
+function addDetectStep() {
+  const r = recipe();
+  const group = groupName(VM.detGroup) || groupName(VM.detModel) || "objects";
+  if (!r || !VM.detModel) return;
+  const conf = Number(VM.detConf);
+  const obj = JSON.parse(JSON.stringify(r));
+  const step = { op: "detect", model: VM.detModel, conf: isFinite(conf) && conf > 0 && conf < 1 ? conf : 0.4, as: "regions:" + group };
+  const pipeline = obj.pipeline || [];
+  const at = pipeline.findIndex(s => s && s.op === "detect" && stepGroup(s) === group);
+  if (at >= 0) pipeline[at] = step; else pipeline.unshift(step);
+  obj.pipeline = pipeline;
+  if (VM.detCount) {
+    obj.measurements = obj.measurements || {};
+    if (!obj.measurements[group + "_count"]) obj.measurements[group + "_count"] = { label: t("vm.countLabel", { g: group }), decimals: 0, compute: { type: "count", regions: group } };
+  }
+  applyRecipeObject(obj, t("vm.added"));
+}
+function removeModelStep(index) {
+  const r = recipe();
+  if (!r) return;
+  const obj = JSON.parse(JSON.stringify(r));
+  const [step] = obj.pipeline.splice(index, 1);
+  const group = step && step.op === "detect" ? stepGroup(step) : null;
+  if (group && !obj.pipeline.some(s => stepGroup(s) === group)) {        // 没人再产出这个区域组：把引用它的测量项和 draw 一起去掉，方案才还能跑
+    Object.keys(obj.measurements || {}).forEach(k => { const c = obj.measurements[k] && obj.measurements[k].compute; if (c && c.regions === group) delete obj.measurements[k]; });
+    if (Array.isArray(obj.draw)) obj.draw = obj.draw.filter(d => !(d && d.regions === group));
+    obj.pipeline = obj.pipeline.filter(s => !(s && s.op === "classify" && s.on === "regions:" + group));
+  }
+  applyRecipeObject(obj, t("vm.removed"));
+}
+function syncDecisionSelect() {
+  const sel = $("#v-dec-model");
+  if (!sel) return;
+  const current = S.model.trim();
+  if (current && !Array.from(sel.options).some(o => o.value === current)) sel.append(h("option", { value: current }, t("pick.other", { id: current })));
+  sel.value = current;
+}
+function stepSummary(step) {
+  if (step.op === "classify") return t("vm.stepClassify", { m: step.model, g: String(step.on || "image").replace(/^regions:/, "") });
+  return t("vm.stepDetect", { m: step.model || step.model_file, g: stepGroup(step) });
+}
+function modelsCard() {
+  const card = h("section", { class: "card" }, h("div", { class: "head" }, h("h2", {}, t("vm.title"))));
+  const r = recipe();
+  /* 决策模型 */
+  const dec = h("select", { id: "v-dec-model", class: "inline-input grow", onchange: e => {
+    S.model = e.target.value; const box = $("#model"); if (box) box.value = S.model;
+    refresh(); renderModelOptions();
+  } });
+  dec.append(h("option", { value: "" }, t("pick.empty") + (activeModel() ? "  → " + activeModel() : "")));
+  modelChoices().forEach(m => dec.append(h("option", { value: m.id }, modelLabel(m))));
+  card.append(h("div", { class: "rowline" }, h("span", { class: "hint vm-label" }, t("vm.decision")), dec));
+  if (!visionReady()) { card.append(h("div", { class: "hint warn" }, t("v.needVision"))); return card; }
+  if (!VM.loaded) { loadVisionModels(); card.append(h("div", { class: "fine" }, t("vm.loading"))); return card; }
+  const goTrain = tab => h("button", { class: "btn small", type: "button", onclick: () => { setTrainTab(tab); setView("train"); } }, t("vm.goTrain"));
+  const groups = recipeGroups(r);
+  /* 区域分类模型 */
+  if (!VM.cls.length) card.append(h("div", { class: "rowline" }, h("span", { class: "hint vm-label" }, t("vm.classifier")), h("span", { class: "hint" }, t("vm.noCls")), goTrain("cls")));
+  else {
+    const clsSel = h("select", { class: "inline-input grow", "aria-label": t("vm.classifier"), onchange: e => { VM.clsModel = e.target.value; } });
+    VM.cls.forEach(m => clsSel.append(h("option", { value: m.name }, m.name + "  (" + (m.classes || []).join("/") + ")")));
+    clsSel.value = VM.clsModel;
+    if (!groups.some(g => g.name === VM.clsGroup)) VM.clsGroup = groups.length ? groups[0].name : "";
+    const grpSel = h("select", { class: "inline-input", "aria-label": t("vm.group"), onchange: e => { VM.clsGroup = e.target.value; } });
+    groups.forEach(g => grpSel.append(h("option", { value: g.name }, g.name)));
+    grpSel.value = VM.clsGroup;
+    card.append(h("div", { class: "rowline" }, h("span", { class: "hint vm-label" }, t("vm.classifier")), clsSel, h("span", { class: "hint" }, t("vm.group")),
+      groups.length ? grpSel : h("span", { class: "hint warn" }, t("vm.noGroups")),
+      h("button", { class: "btn small primary", type: "button", disabled: !r || !groups.length, onclick: addClassifyStep }, t("vm.add"))));
+  }
+  /* 检测模型 */
+  if (!VM.det.length) card.append(h("div", { class: "rowline" }, h("span", { class: "hint vm-label" }, t("vm.detector")), h("span", { class: "hint" }, t("vm.noDet")), goTrain("det")));
+  else {
+    const detSel = h("select", { class: "inline-input grow", "aria-label": t("vm.detector"), onchange: e => { VM.detModel = e.target.value; if (!VM.touched) VM.detGroup = groupName(VM.detModel); renderVision(); } });
+    VM.det.forEach(m => detSel.append(h("option", { value: m.name }, m.name + "  (" + (m.classes || []).join("/") + ")")));
+    detSel.value = VM.detModel;
+    if (!VM.touched) VM.detGroup = groupName(VM.detModel);
+    const grp = h("input", { class: "inline-input", id: "v-det-group", value: VM.detGroup, placeholder: "objects", "aria-label": t("vm.outGroup"), oninput: e => { VM.detGroup = e.target.value; VM.touched = true; } });
+    const conf = h("input", { class: "inline-input", type: "number", min: "0.05", max: "0.95", step: "0.05", value: VM.detConf, style: "width:72px", "aria-label": t("vm.conf"), oninput: e => { VM.detConf = e.target.value; } });
+    grp.style.width = "130px";
+    card.append(h("div", { class: "rowline" }, h("span", { class: "hint vm-label" }, t("vm.detector")), detSel));
+    card.append(h("div", { class: "rowline" }, h("span", { class: "vm-label" }), h("span", { class: "hint" }, t("vm.outGroup")), grp, h("span", { class: "hint" }, t("vm.conf")), conf));
+    card.append(h("div", { class: "rowline" }, h("span", { class: "vm-label" }), h("label", { class: "check" }, h("input", { type: "checkbox", checked: VM.detCount || null, onchange: e => { VM.detCount = e.target.checked; } }), t("vm.addCount")),
+      h("span", { class: "spacer" }), h("button", { class: "btn small primary", type: "button", disabled: !r, onclick: addDetectStep }, t("vm.add"))));
+  }
+  /* 方案里已有的模型步骤 */
+  const steps = ((r && r.pipeline) || []).map((s, i) => [s, i]).filter(p => p[0] && (p[0].op === "classify" || p[0].op === "detect"));
+  if (steps.length) {
+    const list = h("div", { class: "fine" }, t("vm.inRecipe"));
+    steps.forEach(([step, i]) => list.append(h("div", { class: "rowline", style: "margin:4px 0 0" }, h("code", {}, stepSummary(step)),
+      h("button", { class: "btn small", type: "button", onclick: () => removeModelStep(i) }, t("vm.remove")))));
+    card.append(list);
+  }
+  card.append(h("p", { class: "fine", style: "margin-bottom:0" }, t("vm.note")));
+  return card;
 }
 
 /* ---------- 渲染：视觉检测 ---------- */
@@ -424,6 +623,9 @@ function renderVision() {
     h("label", { class: "check" }, h("input", { type: "checkbox", checked: V.rulesOnly || null, onchange: e => { V.rulesOnly = e.target.checked; } }), t("v.rulesOnly")),
     h("span", { class: "hint warn" }, V.running ? "" : problem)));
 
+  /* 模型 */
+  left.append(modelsCard());
+
   /* 方案内容 */
   const fold = h("details", { class: "fold", id: "v-fold" }, h("summary", {}, t("v.recipeJson")));
   if (renderVision.foldOpen) fold.open = true;
@@ -456,7 +658,8 @@ function renderVision() {
   grid.append(right);
   root.append(grid);
   renderResult();
-  if (keepFocus) { const el = document.getElementById(keepFocus); if (el && el.tagName === "TEXTAREA") el.focus(); }
+  syncDecisionSelect();
+  if (keepFocus) { const el = document.getElementById(keepFocus); if (el && (el.tagName === "TEXTAREA" || el.id === "v-det-group")) { el.focus(); if (el.setSelectionRange && el.id === "v-det-group") el.setSelectionRange(el.value.length, el.value.length); } }
   if ($("#v-recipe-json")) $("#v-recipe-json").scrollTop = keepScroll;
 }
 
@@ -676,6 +879,7 @@ async function trainJob(kind, path, body, onDone) {
   const job = await pollJob(TR.job, cur => { TR.job = cur; renderTrain.progress(); });
   TR.job = null;
   if (job.state === "done") onDone(job.result); else TR.msg = { cls: "bad", text: t("t.fail", { msg: job.error || "" }) };
+  VM.loaded = false;
   loadTrain();
 }
 function startTrain() {
@@ -716,6 +920,10 @@ function renderTrain() {
   }
   root.append(top);
   if (!health) return;
+  const seg = h("div", { class: "seg", role: "group", style: "margin-bottom:14px" });
+  [["cls", "det.tab.cls"], ["det", "det.tab.det"]].forEach(pair => seg.append(h("button", { type: "button", "aria-pressed": String(DT.tab === pair[0]), onclick: () => setTrainTab(pair[0]) }, t(pair[1]))));
+  root.append(seg);
+  if (DT.tab === "det") return renderDetect(root, health);
   if (!TR.loaded) { loadTrain(); return; }
 
   const grid = h("main", { class: "grid" });
@@ -863,24 +1071,463 @@ renderTrain.progress = function () {
   text.textContent = stageName(TR.job.stage) + "  " + Math.round((TR.job.progress || 0) * 100) + "%";
 };
 
+/* ---------- 目标检测：数据集、画框标注、训练、模型 ---------- */
+const TRAIN_TAB_KEY = "laya-workbench-train-tab";
+const DT = {
+  tab: "cls", loaded: false, datasets: [], models: [], dataset: "", items: null, total: 0, offset: 0, limit: 60, classes: [], recipes: null,
+  lab: { file: null, image: null, img: null, w: 0, h: 0, boxes: [], sel: -1, cls: "", dirty: false, msg: null },
+  form: { name: "", arch: "ssdlite", epochs: 20, batch: 8, imgsz: 320, pretrained: "auto", holdout: 0.15, resume: false },
+  job: null, jobKind: "", msg: null, result: null, test: {}, scene: "weed", count: 40, confirm: "", recipe: "", conf: 0.4
+};
+try { const saved = localStorage.getItem(TRAIN_TAB_KEY); if (saved === "det" || saved === "cls") DT.tab = saved; } catch (e) { /* 用默认子页 */ }
+function setTrainTab(tab) {
+  DT.tab = tab === "det" ? "det" : "cls";
+  try { localStorage.setItem(TRAIN_TAB_KEY, DT.tab); } catch (e) { /* 记不住也没关系 */ }
+  renderTrain();
+}
+function detInfo() { const v = vision(); return (v && v.health && v.health.detect) || null; }
+function detReady() { const d = detInfo(); return !!(d && d.available); }
+function fmtEta(sec) {
+  if (sec == null) return "-";
+  sec = Math.max(0, Math.round(sec));
+  if (sec < 90) return sec + " s";
+  if (sec < 5400) return Math.round(sec / 60) + " min";
+  return (sec / 3600).toFixed(1) + " h";
+}
+function imgUrl(name, file, thumb) {
+  return "/v1/vision/det/datasets/image?name=" + encodeURIComponent(name) + "&file=" + encodeURIComponent(file) + (thumb ? "&thumb=1" : "");
+}
+
+async function loadDetect() {
+  if (!visionReady()) { DT.loaded = false; return; }
+  const [a, b] = await Promise.all([jget("/v1/vision/det/datasets"), jget("/v1/vision/det/models")]);
+  DT.datasets = a.ok ? a.data.datasets : [];
+  DT.models = b.ok ? b.data.models : [];
+  if (!DT.datasets.some(d => d.name === DT.dataset)) { DT.dataset = DT.datasets.length ? DT.datasets[0].name : ""; DT.items = null; DT.offset = 0; }
+  const ds = DT.datasets.find(d => d.name === DT.dataset);
+  DT.classes = ds ? ds.classes.slice() : [];
+  if (DT.lab.cls && !DT.classes.includes(DT.lab.cls)) DT.classes.push(DT.lab.cls);
+  if (!DT.form.name) DT.form.name = DT.dataset ? DT.dataset + "-det" : "";
+  if (DT.dataset && DT.items === null) {
+    const r = await jget("/v1/vision/det/datasets/items?name=" + encodeURIComponent(DT.dataset) + "&offset=" + DT.offset + "&limit=" + DT.limit);
+    if (r.ok) { DT.items = r.data.items; DT.total = r.data.total; } else { DT.items = []; DT.total = 0; }
+  }
+  if (DT.recipes === null) {
+    const r = await jget("/_wb/recipes?lang=" + LANG);
+    DT.recipes = r.ok && Array.isArray(r.data) ? r.data : [];
+    if (!DT.recipe && DT.recipes.length) DT.recipe = DT.recipes[0].id;
+  }
+  DT.loaded = true;
+  renderTrain();
+}
+function selectDetDataset(name) {
+  DT.dataset = name; DT.items = null; DT.offset = 0; DT.confirm = ""; DT.loaded = false;
+  DT.form.name = name ? name + "-det" : "";
+  resetLabeler(); DT.lab.cls = "";
+  renderTrain();
+}
+async function detJob(kind, path, body, onDone) {
+  if (DT.job) return;
+  DT.msg = null; DT.jobKind = kind;
+  const res = await jpost(path, body);
+  if (!res.ok) { DT.msg = { cls: "bad", text: errText(res) }; return renderTrain(); }
+  DT.job = res.data; renderTrain();
+  const job = await pollJob(DT.job, cur => { DT.job = cur; renderDetect.progress(); });
+  DT.job = null;
+  if (job.state === "done") onDone(job.result);
+  else if (job.state === "cancelled") DT.msg = { cls: "", text: t("det.cancelled") };
+  else DT.msg = { cls: "bad", text: t("det.fail", { msg: job.error || "" }) };
+  DT.loaded = false; DT.items = null; VM.loaded = false;
+  renderTrain();
+}
+async function cancelDetJob() {
+  if (!DT.job) return;
+  await jpost("/v1/vision/jobs/cancel", { id: DT.job.id });
+}
+function startDetTrain() {
+  const f = DT.form;
+  const ds = DT.datasets.find(d => d.name === DT.dataset);
+  if (!ds) { DT.msg = { cls: "bad", text: t("det.needDataset") }; return renderTrain(); }
+  if (!ds.boxes) { DT.msg = { cls: "bad", text: t("det.needBoxes") }; return renderTrain(); }
+  if (!f.name.trim()) { DT.msg = { cls: "bad", text: t("det.needName") }; return renderTrain(); }
+  DT.result = null;
+  detJob("train", "/v1/vision/det/train", { dataset: DT.dataset, name: f.name.trim(), arch: f.arch, epochs: Number(f.epochs) || 20, batch: Number(f.batch) || 8,
+    imgsz: Number(f.imgsz) || 320, pretrained: f.pretrained, holdout: Number(f.holdout) || 0, resume: !!f.resume }, result => { DT.result = result; });
+}
+
+/* ---- 标注器 ---- */
+function resetLabeler() { DT.lab = { file: null, image: null, img: null, w: 0, h: 0, boxes: [], sel: -1, cls: DT.lab.cls, dirty: false, msg: null }; }
+function labelerLoadUrl(url, file, boxes) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      DT.lab = { file: file || null, image: url, img: img, w: img.naturalWidth, h: img.naturalHeight, boxes: (boxes || []).map(b => ({ label: b.label, bbox: b.bbox.slice() })),
+        sel: -1, cls: DT.lab.cls, dirty: false, msg: null };
+      resolve(true);
+    };
+    img.onerror = () => { toast(t("det.imgFail", { msg: "decode" })); resolve(false); };
+    img.src = url;
+  });
+}
+async function labelerUseFile(file) {
+  if (!file) return;
+  try { await labelerLoadUrl(await fileToDataUrl(file, 1280), null, []); renderTrain(); } catch (e) { toast(t("det.imgFail", { msg: e.message })); }
+}
+async function labelerOpenItem(item) {
+  try {
+    const resp = await api(imgUrl(DT.dataset, item.file));
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    await labelerLoadUrl(await blobToDataUrl(await resp.blob()), item.file, item.boxes);
+    renderTrain();
+  } catch (e) { toast(t("det.imgFail", { msg: e.message })); }
+}
+function labelerStep(delta) {
+  const items = DT.items || [];
+  const idx = items.findIndex(i => i.file === DT.lab.file);
+  const next = items[idx < 0 ? (delta > 0 ? 0 : items.length - 1) : idx + delta];
+  if (next) labelerOpenItem(next);
+}
+async function labelerSave() {
+  const lab = DT.lab;
+  if (!lab.image || !DT.dataset) { toast(t("det.needDataset")); return; }
+  let res;
+  if (lab.file) res = await jpost("/v1/vision/det/datasets/label", { name: DT.dataset, file: lab.file, boxes: lab.boxes });
+  else res = await jpost("/v1/vision/det/datasets/add", { name: DT.dataset, image: lab.image, boxes: lab.boxes, size: [lab.w, lab.h] });
+  if (!res.ok) { lab.msg = { cls: "bad", text: errText(res) }; return renderTrain(); }
+  lab.file = res.data.file; lab.boxes = res.data.boxes.map(b => ({ label: b.label, bbox: b.bbox.slice() })); lab.dirty = false; lab.sel = -1;
+  lab.msg = { cls: "ok", text: t("det.saved") };
+  DT.classes = res.data.classes.slice();
+  DT.loaded = false; DT.items = null;
+  renderTrain();
+}
+async function labelerPrelabel() {
+  const lab = DT.lab;
+  if (!lab.file) { toast(t("det.saveFirst")); return; }
+  const item = (DT.recipes || []).find(r => r.id === DT.recipe);
+  if (!item) return;
+  const res = await jpost("/v1/vision/det/datasets/prelabel", { name: DT.dataset, file: lab.file, recipe: item.recipe });
+  if (!res.ok) { lab.msg = { cls: "bad", text: errText(res) }; return renderTrain(); }
+  lab.boxes = res.data.boxes.map(b => ({ label: b.label, bbox: b.bbox.slice() }));
+  res.data.boxes.forEach(b => { if (b.label && !DT.classes.includes(b.label)) DT.classes.push(b.label); });
+  lab.dirty = true; lab.sel = -1; lab.msg = { cls: "", text: t("det.prelabeled", { n: lab.boxes.length }) };
+  renderTrain();
+}
+async function labelerDeleteImage() {
+  if (!DT.lab.file) return;
+  await jpost("/v1/vision/det/datasets/delete", { name: DT.dataset, file: DT.lab.file });
+  resetLabeler(); DT.loaded = false; DT.items = null; renderTrain();
+}
+function drawLabeler(canvas, temp) {
+  const lab = DT.lab;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (lab.img) ctx.drawImage(lab.img, 0, 0, canvas.width, canvas.height);
+  const lw = Math.max(1, canvas.width / 480);
+  const palette = ["#14b8a6", "#e11d48", "#f59e0b", "#3b82f6", "#a855f7", "#84cc16", "#f97316", "#06b6d4"];
+  ctx.font = Math.max(11, canvas.width / 55) + "px sans-serif";
+  lab.boxes.forEach((b, i) => {
+    const ci = Math.max(0, DT.classes.indexOf(b.label));
+    const color = palette[ci % palette.length];
+    const [x, y, w, hh] = b.bbox;
+    ctx.lineWidth = i === lab.sel ? lw * 2.5 : lw;
+    ctx.strokeStyle = color;
+    ctx.strokeRect(x + 0.5, y + 0.5, w, hh);
+    if (i === lab.sel) { ctx.fillStyle = "rgba(255,255,255,0.18)"; ctx.fillRect(x, y, w, hh); }
+    const text = b.label || "?";
+    const tw = ctx.measureText(text).width + 6, th = Math.max(13, canvas.width / 48);
+    const ty = y - th >= 0 ? y - th : y + hh;
+    ctx.fillStyle = color; ctx.fillRect(x, ty, tw, th);
+    ctx.fillStyle = "#fff"; ctx.fillText(text, x + 3, ty + th - 3);
+  });
+  if (temp) { ctx.setLineDash([lw * 3, lw * 3]); ctx.lineWidth = lw; ctx.strokeStyle = "#fff"; ctx.strokeRect(temp[0] + 0.5, temp[1] + 0.5, temp[2], temp[3]); ctx.setLineDash([]); }
+}
+function hitBox(x, y) {
+  let best = -1, area = Infinity;
+  DT.lab.boxes.forEach((b, i) => {
+    const [bx, by, bw, bh] = b.bbox;
+    if (x >= bx && y >= by && x <= bx + bw && y <= by + bh && bw * bh < area) { best = i; area = bw * bh; }
+  });
+  return best;
+}
+function labelerCanvas() {
+  const lab = DT.lab;
+  const canvas = h("canvas", { id: "d-canvas", width: lab.w, height: lab.h, style: "max-width:100%;height:auto;display:block;touch-action:none;cursor:crosshair;border-radius:12px;background:#16232b" });
+  let drag = null;
+  const pos = e => { const r = canvas.getBoundingClientRect(); return [Math.round((e.clientX - r.left) * canvas.width / r.width), Math.round((e.clientY - r.top) * canvas.height / r.height)]; };
+  const clamp = (v, max) => Math.max(0, Math.min(max, v));
+  canvas.addEventListener("pointerdown", e => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const [x, y] = pos(e);
+    const hit = hitBox(x, y);
+    if (hit >= 0 && hit !== lab.sel) { lab.sel = hit; drawLabeler(canvas); renderLabelerBar(); return; }
+    if (hit >= 0 && hit === lab.sel) { lab.sel = -1; drawLabeler(canvas); renderLabelerBar(); return; }
+    if (!(lab.cls || DT.classes[0])) { toast(t("det.needClass")); return; }
+    drag = [x, y];
+    canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener("pointermove", e => {
+    if (!drag) return;
+    const [x, y] = pos(e);
+    drawLabeler(canvas, [Math.min(drag[0], x), Math.min(drag[1], y), Math.abs(x - drag[0]), Math.abs(y - drag[1])]);
+  });
+  const finish = e => {
+    if (!drag) return;
+    const [x, y] = pos(e);
+    const x0 = clamp(Math.min(drag[0], x), lab.w), y0 = clamp(Math.min(drag[1], y), lab.h);
+    const x1 = clamp(Math.max(drag[0], x), lab.w), y1 = clamp(Math.max(drag[1], y), lab.h);
+    drag = null;
+    if (x1 - x0 >= 4 && y1 - y0 >= 4) {
+      lab.boxes.push({ label: lab.cls || DT.classes[0], bbox: [x0, y0, x1 - x0, y1 - y0] });
+      lab.sel = lab.boxes.length - 1; lab.dirty = true;
+    }
+    drawLabeler(canvas); renderLabelerBar();
+  };
+  canvas.addEventListener("pointerup", finish);
+  canvas.addEventListener("pointercancel", () => { drag = null; drawLabeler(canvas); });
+  drawLabeler(canvas);
+  return canvas;
+}
+function deleteSelectedBox() {
+  const lab = DT.lab;
+  if (lab.sel < 0) return;
+  lab.boxes.splice(lab.sel, 1); lab.sel = -1; lab.dirty = true;
+  const canvas = $("#d-canvas"); if (canvas) drawLabeler(canvas);
+  renderLabelerBar();
+}
+function renderLabelerBar() {
+  const bar = $("#d-labbar");
+  if (!bar) return;
+  bar.textContent = "";
+  const lab = DT.lab;
+  const clsSel = h("select", { class: "inline-input", "aria-label": t("det.cls"), onchange: e => { lab.cls = e.target.value; } });
+  DT.classes.forEach(c => clsSel.append(h("option", { value: c }, c)));
+  if (!DT.classes.includes(lab.cls)) lab.cls = DT.classes[0] || "";
+  clsSel.value = lab.cls;
+  const newCls = h("input", { class: "inline-input", placeholder: t("det.newClass") });
+  const addCls = () => {
+    const name = newCls.value.trim().replace(/\s+/g, "_");
+    if (!name) return toast(t("det.needName"));
+    if (!DT.classes.includes(name)) DT.classes.push(name);
+    lab.cls = name; newCls.value = ""; renderLabelerBar(); const c = $("#d-canvas"); if (c) drawLabeler(c);
+  };
+  newCls.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); addCls(); } });
+  bar.append(h("div", { class: "rowline" }, h("span", { class: "hint" }, t("det.cls")), DT.classes.length ? clsSel : null, newCls,
+    h("button", { class: "btn small", type: "button", onclick: addCls }, t("det.addClass")),
+    h("span", { class: "spacer" }), h("span", { class: "hint" }, t("det.boxes", { n: lab.boxes.length }) + (lab.dirty ? "　·　" + t("det.unsaved") : ""))));
+  if (lab.sel >= 0 && lab.boxes[lab.sel]) {
+    const box = lab.boxes[lab.sel];
+    const boxSel = h("select", { class: "inline-input", "aria-label": t("det.boxCls"), onchange: e => { box.label = e.target.value; lab.dirty = true; const c = $("#d-canvas"); if (c) drawLabeler(c); } });
+    DT.classes.forEach(c => boxSel.append(h("option", { value: c }, c)));
+    boxSel.value = box.label;
+    bar.append(h("div", { class: "rowline" }, h("span", { class: "hint" }, t("det.boxCls")), boxSel, h("code", {}, "#" + (lab.sel + 1) + " [" + box.bbox.join(", ") + "]"),
+      h("button", { class: "btn small danger", type: "button", onclick: deleteSelectedBox }, t("det.delBox"))));
+  }
+}
+
+function renderDetect(root, health) {
+  const info = detInfo();
+  const envLine = h("div", { class: "vstatus" }, h("span", { class: "dot " + (detReady() ? "ok" : "bad") }),
+    detReady() ? t("det.env.ready", { t: info.torch, tv: info.torchvision, dev: info.device || "auto" }) : t("det.env.missing", { why: (info && info.reason) || "?" }));
+  root.append(h("section", { class: "card intro" }, envLine, h("p", { class: "fine", style: "margin-bottom:0" }, t("det.intro"))));
+  if (!DT.loaded) { loadDetect(); return; }
+  const grid = h("main", { class: "grid" });
+  const left = h("div", { class: "col" });
+
+  /* 数据集 */
+  const dsCard = h("section", { class: "card" }, h("div", { class: "head" }, h("h2", {}, t("det.datasets"))));
+  const select = h("select", { class: "inline-input grow", "aria-label": t("t.dataset"), onchange: e => selectDetDataset(e.target.value) });
+  DT.datasets.forEach(d => select.append(h("option", { value: d.name }, d.name + "  (" + d.images + ")")));
+  select.value = DT.dataset;
+  const newName = h("input", { class: "inline-input grow", placeholder: t("det.newName") });
+  const newClasses = h("input", { class: "inline-input grow", placeholder: t("det.newClasses") });
+  dsCard.append(h("div", { class: "rowline" }, DT.datasets.length ? select : null, newName, newClasses,
+    h("button", { class: "btn small", type: "button", onclick: async () => {
+      const name = newName.value.trim();
+      if (!name) return toast(t("det.needName"));
+      const res = await jpost("/v1/vision/det/datasets/create", { name: name, classes: newClasses.value });
+      if (!res.ok) return toast(errText(res));
+      selectDetDataset(res.data.name);
+    } }, t("det.create"))));
+  const scene = h("select", { class: "inline-input", "aria-label": t("t.demoScene"), onchange: e => { DT.scene = e.target.value; } });
+  Object.keys(health.scenes || {}).forEach(name => scene.append(h("option", { value: name }, name)));
+  scene.value = DT.scene;
+  const count = h("input", { class: "inline-input", type: "number", min: "4", max: "500", value: String(DT.count), "aria-label": t("det.demoCount"), style: "width:80px", oninput: e => { DT.count = Number(e.target.value) || 40; } });
+  dsCard.append(h("div", { class: "rowline" }, h("span", { class: "hint" }, t("det.demoGen")), scene, h("span", { class: "hint" }, t("det.demoCount")), count,
+    h("button", { class: "btn small", type: "button", disabled: !!DT.job, onclick: () => detJob("dataset", "/v1/vision/det/datasets/demo", { scene: DT.scene, count: DT.count },
+      result => { DT.dataset = result.name; DT.form.name = result.name + "-det"; resetLabeler(); DT.msg = { cls: "ok", text: t("det.generated", { name: result.name, n: result.images, b: result.boxes }) + (LANG === "en" ? " " : "") + t("det.synthNote") }; }) },
+      DT.job && DT.jobKind === "dataset" ? t("det.generating") : t("det.demoGen"))));
+  const ds = DT.datasets.find(d => d.name === DT.dataset);
+  if (!ds) dsCard.append(h("div", { class: "empty" }, t("det.noDataset")));
+  else {
+    dsCard.append(h("div", { class: "rowline" }, h("span", { class: "hint grow" }, t("det.meta", { n: ds.images, b: ds.boxes, c: ds.classes.length ? ds.classes.join(" / ") : t("det.noClasses") })),
+      DT.confirm === "d" ? h("button", { class: "btn small danger", type: "button", onclick: async () => { DT.confirm = ""; await jpost("/v1/vision/det/datasets/delete", { name: ds.name }); selectDetDataset(""); } }, t("det.confirm"))
+        : h("button", { class: "btn small danger", type: "button", onclick: () => { DT.confirm = "d"; renderTrain(); } }, t("det.delDataset"))));
+    const items = DT.items || [];
+    if (!items.length) dsCard.append(h("div", { class: "empty" }, t("det.noItems")));
+    else {
+      const thumbs = h("div", { class: "thumbs" });
+      items.forEach(item => {
+        const wrap = h("span", { style: "position:relative;display:inline-block;cursor:pointer", title: item.file + "  " + t("det.boxes", { n: item.boxes.length }), onclick: () => labelerOpenItem(item) },
+          h("img", { loading: "lazy", alt: "", src: imgUrl(ds.name, item.file, true), style: item.file === DT.lab.file ? "outline:3px solid var(--teal)" : "" }),
+          h("span", { style: "position:absolute;right:2px;bottom:2px;background:rgba(22,35,43,.8);color:#fff;font-size:10px;padding:0 4px;border-radius:4px;line-height:14px" }, String(item.boxes.length)));
+        thumbs.append(wrap);
+      });
+      dsCard.append(thumbs);
+      dsCard.append(h("div", { class: "rowline", style: "margin-top:8px" }, h("span", { class: "hint grow" }, t("det.itemsCount", { n: DT.total, a: DT.offset + 1, b: DT.offset + items.length })),
+        h("button", { class: "btn small", type: "button", disabled: DT.offset <= 0, onclick: () => { DT.offset = Math.max(0, DT.offset - DT.limit); DT.items = null; DT.loaded = false; renderTrain(); } }, t("det.prevPage")),
+        h("button", { class: "btn small", type: "button", disabled: DT.offset + DT.limit >= DT.total, onclick: () => { DT.offset += DT.limit; DT.items = null; DT.loaded = false; renderTrain(); } }, t("det.nextPage"))));
+    }
+  }
+  if (DT.msg && DT.jobKind === "dataset") dsCard.append(h("div", { class: "prov-msg " + DT.msg.cls }, DT.msg.text));
+  left.append(dsCard);
+
+  /* 标注器 */
+  const lab = DT.lab;
+  const labCard = h("section", { class: "card" }, h("div", { class: "head" }, h("h2", {}, t("det.labeler"))));
+  const fileInput = h("input", { type: "file", accept: "image/*", hidden: true, onchange: e => { const f = e.target.files[0]; e.target.value = ""; labelerUseFile(f); } });
+  labCard.append(fileInput);
+  if (lab.image) labCard.append(h("div", { class: "imgbox", style: "line-height:0" }, labelerCanvas()), h("p", { class: "fine", style: "margin:6px 0" }, t("det.dropSmall")));
+  else labCard.append(h("div", { class: "drop", role: "button", tabindex: "0", onclick: () => fileInput.click(),
+    onkeydown: e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); } } }, t("det.drop"), h("small", {}, t("det.dropSmall"))));
+  labCard.addEventListener("dragover", e => { e.preventDefault(); const d = $(".drop", labCard); if (d) d.classList.add("over"); });
+  labCard.addEventListener("dragleave", () => { const d = $(".drop", labCard); if (d) d.classList.remove("over"); });
+  labCard.addEventListener("drop", e => { e.preventDefault(); const f = imageFiles(e.dataTransfer.files)[0]; if (f) labelerUseFile(f); });
+  labCard.append(h("div", { id: "d-labbar" }));
+  const nav = h("div", { class: "rowline" },
+    h("button", { class: "btn small", type: "button", onclick: () => fileInput.click() }, t("det.pick")),
+    h("button", { class: "btn small", type: "button", disabled: !(DT.items && DT.items.length), onclick: () => labelerStep(-1) }, t("det.prev")),
+    h("button", { class: "btn small", type: "button", disabled: !(DT.items && DT.items.length), onclick: () => labelerStep(1) }, t("det.next")),
+    h("span", { class: "spacer" }),
+    lab.image ? h("button", { class: "btn small", type: "button", onclick: () => { lab.boxes = []; lab.sel = -1; lab.dirty = true; renderTrain(); } }, t("det.clear")) : null,
+    lab.file ? h("button", { class: "btn small danger", type: "button", onclick: labelerDeleteImage }, t("det.delImage")) : null,
+    h("button", { class: "btn small primary", type: "button", disabled: !lab.image || !DT.dataset, onclick: labelerSave }, t("det.save")));
+  labCard.append(nav);
+  const recipeSel = h("select", { class: "inline-input grow", "aria-label": t("det.recipe"), onchange: e => { DT.recipe = e.target.value; } });
+  (DT.recipes || []).forEach(r => recipeSel.append(h("option", { value: r.id }, r.title + (r.custom ? t("v.custom") : ""))));
+  recipeSel.value = DT.recipe;
+  labCard.append(h("div", { class: "rowline" }, h("span", { class: "hint" }, t("det.recipe")), recipeSel,
+    h("button", { class: "btn small", type: "button", disabled: !lab.file || !DT.recipe, title: lab.file ? "" : t("det.saveFirst"), onclick: labelerPrelabel }, t("det.prelabel"))));
+  labCard.append(h("p", { class: "fine" }, t("det.prelabelHint")));
+  if (lab.msg) labCard.append(h("div", { class: "prov-msg " + (lab.msg.cls || "") }, lab.msg.text));
+  left.append(labCard);
+  grid.append(left);
+
+  /* 训练 */
+  const f = DT.form;
+  const right = h("div", { class: "col" });
+  const trCard = h("section", { class: "card" }, h("div", { class: "head" }, h("h2", {}, t("det.train"))));
+  trCard.append(h("div", { class: "vfield" }, h("label", { for: "d-name" }, t("det.modelName")), h("input", { id: "d-name", type: "text", value: f.name, oninput: e => { f.name = e.target.value; } })));
+  const arch = h("select", { id: "d-arch", onchange: e => { f.arch = e.target.value; } });
+  ((info && info.archs) || ["ssdlite", "fasterrcnn_mobile"]).forEach(name => arch.append(h("option", { value: name }, I18N.zh["det.arch." + name] ? t("det.arch." + name) : name)));
+  arch.value = f.arch;
+  trCard.append(h("div", { class: "vfield" }, h("label", { for: "d-arch" }, t("det.arch")), arch));
+  const num = (key, label, min, max, step) => h("div", { class: "vfield", style: "flex:1 1 90px" }, h("label", {}, label),
+    h("input", { type: "number", min: String(min), max: String(max), step: String(step || 1), value: String(f[key]), style: "width:100%", oninput: e => { f[key] = e.target.value; } }));
+  trCard.append(h("div", { style: "display:flex;gap:10px;flex-wrap:wrap" }, num("epochs", t("det.epochs"), 1, 500), num("batch", t("det.batch"), 1, 64), num("imgsz", t("det.imgsz"), 96, 1024, 32), num("holdout", t("det.holdout"), 0, 0.5, 0.05)));
+  const pre = h("select", { id: "d-pre", onchange: e => { f.pretrained = e.target.value; } });
+  ["auto", "yes", "no"].forEach(v => pre.append(h("option", { value: v }, t("det.pre." + v))));
+  pre.value = f.pretrained;
+  trCard.append(h("div", { class: "vfield" }, h("label", { for: "d-pre" }, t("det.pretrained")), pre));
+  trCard.append(h("div", { class: "checks", style: "margin-bottom:12px" }, h("label", { class: "check" }, h("input", { type: "checkbox", checked: f.resume || null, onchange: e => { f.resume = e.target.checked; } }), t("det.resume"))));
+  const training = DT.job && DT.jobKind === "train";
+  trCard.append(h("div", { class: "rowline" }, h("button", { class: "btn primary", type: "button", disabled: !!DT.job || !detReady(), onclick: startDetTrain }, training ? t("det.training") : t("det.start")),
+    training ? h("button", { class: "btn small danger", type: "button", onclick: cancelDetJob }, t("det.cancel")) : null,
+    h("span", { class: "hint", id: "d-job-text" })));
+  trCard.append(h("div", { class: "progress", id: "d-job-bar", hidden: !training }, h("i")));
+  trCard.append(h("pre", { class: "code", id: "d-job-log", hidden: !training, style: "max-height:160px;overflow:auto;font-size:12px" }));
+  if (DT.msg && DT.jobKind === "train") trCard.append(h("div", { class: "prov-msg " + DT.msg.cls }, DT.msg.text));
+  const res = DT.result;
+  if (res) {
+    trCard.append(h("div", { class: "sub" }, t("det.result"), h("small", {}, res.name || "")));
+    if (res.map50 != null) trCard.append(h("div", { class: "acc" }, pct(res.map50), h("small", {}, t("det.map"))));
+    else trCard.append(h("div", { class: "fine" }, t("det.mapNone")));
+    trCard.append(h("p", { class: "fine" }, t("det.resultNote", { n: res.epochs_done, tr: res.train_images, ho: res.holdout_images, s: res.seconds, pre: res.pretrained_used ? t("det.preUsed") : t("det.preNo") }) +
+      (res.oom_retries ? " " + t("det.oomNote", { n: res.oom_retries, b: res.batch }) : "")));
+    const per = res.per_class || {};
+    if (Object.keys(per).length) {
+      const tb = h("tbody");
+      Object.keys(per).forEach(c => tb.append(h("tr", {}, h("td", {}, c), h("td", { class: "num" }, per[c] == null ? "-" : pct(per[c])))));
+      trCard.append(h("div", { class: "table-wrap" }, h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, t("det.th.class")), h("th", { class: "num" }, t("det.th.ap")))), tb)));
+    }
+    trCard.append(h("p", { class: "fine" }, t("det.synthNote")));
+  }
+  right.append(trCard);
+
+  /* 模型 */
+  const mdCard = h("section", { class: "card" }, h("div", { class: "head" }, h("h2", {}, t("det.models")),
+    h("label", { class: "check" }, t("det.conf"), h("input", { type: "number", min: "0.05", max: "0.95", step: "0.05", value: String(DT.conf), style: "width:70px;margin-left:6px", oninput: e => { DT.conf = Number(e.target.value) || 0.4; } }))));
+  if (!DT.models.length) mdCard.append(h("div", { class: "empty" }, t("det.noModels")));
+  DT.models.forEach(m => {
+    const picker = h("input", { type: "file", accept: "image/*", hidden: true, onchange: async e => {
+      const file = e.target.files[0]; e.target.value = "";
+      if (!file) return;
+      const res2 = await jpost("/v1/vision/det/predict", { model: m.name, image: await fileToDataUrl(file, 1280), conf: DT.conf });
+      DT.test[m.name] = res2.ok ? { ok: true, data: res2.data, conf: DT.conf } : { ok: false, text: errText(res2) };
+      renderTrain();
+    } });
+    const box = h("div", { class: "model" }, picker, h("div", { class: "model-head" }, h("strong", {}, m.name), h("span", { class: "spacer" }),
+      h("button", { class: "btn small", type: "button", disabled: !detReady(), onclick: () => picker.click() }, t("det.test")),
+      h("button", { class: "btn small", type: "button", onclick: () => { DT.result = Object.assign({ name: m.name, train_images: m.train_images, holdout_images: m.holdout_images, seconds: "-" }, m); renderTrain(); } }, t("det.result")),
+      DT.confirm === "m:" + m.name
+        ? h("button", { class: "btn small danger", type: "button", onclick: async () => { DT.confirm = ""; await jpost("/v1/vision/det/models/delete", { name: m.name }); if (DT.result && DT.result.name === m.name) DT.result = null; DT.loaded = false; renderTrain(); } }, t("det.confirm"))
+        : h("button", { class: "btn small danger", type: "button", onclick: () => { DT.confirm = "m:" + m.name; renderTrain(); } }, t("det.delModel"))));
+    box.append(h("div", { class: "meta-line" }, (m.classes || []).join(" / ")));
+    box.append(h("div", { class: "meta-line" }, t("det.modelMeta", { arch: m.arch, n: (m.classes || []).length, m: m.map50 == null ? "-" : pct(m.map50), time: m.created || "" })));
+    const test = DT.test[m.name];
+    if (test && test.ok) {
+      box.append(h("div", { class: "meta-line" }, t("det.testResult", { n: test.data.boxes.length, c: test.conf })));
+      if (test.data.image) box.append(h("div", { class: "imgbox", style: "margin-top:6px" }, h("img", { src: test.data.image, alt: "" })));
+    } else if (test) box.append(h("div", { class: "prov-msg bad" }, test.text));
+    mdCard.append(box);
+  });
+  mdCard.append(h("p", { class: "fine" }, t("det.useNote")));
+  right.append(mdCard);
+  grid.append(right);
+  root.append(grid);
+  renderLabelerBar();
+  renderDetect.progress();
+}
+renderDetect.progress = function () {
+  const bar = $("#d-job-bar"), text = $("#d-job-text"), log = $("#d-job-log");
+  if (!bar || !text) return;
+  const job = DT.job && DT.jobKind === "train" ? DT.job : null;
+  bar.hidden = !job; if (log) log.hidden = !job;
+  if (!job) { text.textContent = ""; return; }
+  bar.firstChild.style.width = Math.round((job.progress || 0) * 100) + "%";
+  let line = stageName(job.stage) + "  " + Math.round((job.progress || 0) * 100) + "%";
+  if (job.epoch != null) line += "　" + t("det.progress", { e: job.epoch, es: job.epochs || "?", s: job.step == null ? "-" : job.step, ss: job.steps == null ? "-" : job.steps, l: job.loss == null ? "-" : Number(job.loss).toFixed(3), eta: fmtEta(job.eta_seconds) });
+  text.textContent = line;
+  if (log) { log.textContent = (job.log_tail || []).slice(-12).join("\n"); log.scrollTop = log.scrollHeight; }
+};
+document.addEventListener("keydown", e => {
+  if (S.view !== "train" || DT.tab !== "det" || !$("#d-canvas")) return;
+  const tag = (e.target && e.target.tagName) || "";
+  if ((e.key === "Delete" || e.key === "Backspace") && tag !== "INPUT" && tag !== "TEXTAREA" && tag !== "SELECT") { e.preventDefault(); deleteSelectedBox(); }
+});
+
 /* ---------- 对外 ---------- */
 document.addEventListener("paste", e => {
-  if (S.view !== "vision" || !e.clipboardData) return;
+  if (!e.clipboardData) return;
+  const toLabeler = S.view === "train" && DT.tab === "det";
+  if (S.view !== "vision" && !toLabeler) return;
   const tag = (e.target && e.target.tagName) || "";
   const file = imageFiles(e.clipboardData.files)[0];
-  if (file && tag !== "TEXTAREA" && tag !== "INPUT") { e.preventDefault(); useFile(file); }
+  if (file && tag !== "TEXTAREA" && tag !== "INPUT") { e.preventDefault(); if (toLabeler) labelerUseFile(file); else useFile(file); }
 });
 let lastVisionState = "";
 window.WBV = {
   run: runInspect,
+  onModel: function () { syncDecisionSelect(); },
   onView: function () {
     if (S.view !== "vision") stopCamera();
-    if (S.view === "vision") { if (!V.loaded) loadRecipes(); else renderVision(); if (visionReady() && !TR.loaded) jget("/v1/vision/datasets").then(r => { if (r.ok) TR.datasets = r.data.datasets; }); }
-    if (S.view === "train") { TR.loaded = false; renderTrain(); }
+    if (S.view === "vision") { VM.loaded = false; if (!V.loaded) loadRecipes(); else renderVision(); if (visionReady() && !TR.loaded) jget("/v1/vision/datasets").then(r => { if (r.ok) TR.datasets = r.data.datasets; }); }
+    if (S.view === "train") { TR.loaded = false; DT.loaded = false; DT.items = null; renderTrain(); }
   },
   onStatus: function () {
     const v = vision();
-    const state = JSON.stringify([S.status === undefined, !!S.status, v && v.mode, v && v.health && v.health.backbone && v.health.backbone.available]);
+    const state = JSON.stringify([S.status === undefined, !!S.status, v && v.mode, v && v.health && v.health.backbone && v.health.backbone.available,
+      v && v.health && v.health.detect && v.health.detect.available]);
     if (state === lastVisionState) return;                 // 只在状态变化时重画，避免打断正在填写的内容
     lastVisionState = state;
     if (S.view === "vision") renderVision();
@@ -888,7 +1535,8 @@ window.WBV = {
   },
   onLang: function () {
     if (V.loaded || S.view === "vision") loadRecipes(true);
-    if (S.view === "train") renderTrain();
+    DT.recipes = null;
+    if (S.view === "train") { DT.loaded = false; renderTrain(); }
   }
 };
 })();

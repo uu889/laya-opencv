@@ -6,7 +6,8 @@
   mask      分割出一张掩膜   method: hsv / exg / gray / anomaly / chroma / rows / combine
   regions   从掩膜里取出连通区域，并算出每个区域的面积、长度、圆度等属性
   classify  用「训练」页训练出的模型给区域、整图或网格切块分类
-  detect    用外部训练好的 ONNX 检测模型直接得到带类别的框
+  detect    用检测模型直接得到带类别的框：model = 「视觉训练 → 目标检测」训练出的模型名（torchvision），
+            或 model_file = 外部训练好的 YOLO ONNX 文件
 
 测量值写在方案的 measurements 里，每一项的 compute 说明怎么算：
   area_ratio / area / count / sum / max / min / mean / density / mean_channel /
@@ -92,7 +93,7 @@ def color_bgr(text, fallback=(166, 184, 20)):
 # ----------------------------------------------------------------- 上下文
 
 class Context:
-    def __init__(self, img, recipe, models=None, inputs=None):
+    def __init__(self, img, recipe, models=None, inputs=None, detectors=None):
         self.img = img
         self.recipe = recipe
         self.h, self.w = img.shape[:2]
@@ -100,9 +101,11 @@ class Context:
         self.regions = {}
         self.labels = {}
         self.classified = set()                # 已经由模型分过类的区域组
+        self.detected = set()                  # 由检测模型产出的区域组（标注图上写类别和分数）
         self.unavailable = set()               # 本该由模型产出、但模型不存在的区域组
         self.notes = []
         self.models = models                   # 可调用：models(name) -> 分类器；没有训练模块时为 None
+        self.detectors = detectors             # 可调用：detectors(name) -> 检测器（.predict(img, conf, classes)）；没有 torch 时返回 None
         self.inputs = inputs or {}
         self._cache = {}
         cal = recipe.get("calibration") or {}
@@ -562,10 +565,50 @@ def decode_yolo(output, size, classes, conf=0.25, iou=0.45, scale=(1.0, 1.0)):
     return found
 
 
+def _detect_target(step):
+    """结果存到哪个区域组：as: "regions:名字"（契约写法）、into、name，默认 objects。"""
+    target = step.get("as") or step.get("into") or step.get("name") or "objects"
+    target = str(target)
+    return target.split(":", 1)[1] if target.startswith("regions:") else target
+
+
+def regions_from_boxes(ctx, found, index_from=1):
+    """把检测框 [{bbox, label, prob|score}] 变成和分割产出一样结构的区域（矩形轮廓）。"""
+    regions = []
+    for item in found:
+        x, y, w, h = [int(round(v)) for v in item["bbox"]]
+        x, y = max(0, min(ctx.w - 1, x)), max(0, min(ctx.h - 1, y))
+        w, h = max(1, min(ctx.w - x, w)), max(1, min(ctx.h - y, h))
+        contour = np.array([[[x, y]], [[x + w - 1, y]], [[x + w - 1, y + h - 1]], [[x, y + h - 1]]], np.int32)
+        region = region_from_contour(ctx, contour, len(regions) + index_from)
+        region["bbox"] = [x, y, w, h]
+        region["area_px"] = float(w * h)
+        region["area"] = round(ctx.scale_area(w * h), 3)
+        region["label"] = str(item.get("label", ""))
+        prob = item.get("prob", item.get("score"))
+        region["prob"] = round(float(prob), 4) if _num(prob) else None
+        regions.append(region)
+    return regions
+
+
 def step_detect(ctx, step):
+    into = _detect_target(step)
+    if step.get("model") and not step.get("model_file"):            # 本项目训练的检测模型（torchvision，惰性加载）
+        name = str(step["model"])
+        detector = ctx.detectors(name) if ctx.detectors else None
+        if detector is None:
+            ctx.notes.append("model_missing:%s" % name)
+            ctx.regions[into] = []
+            ctx.unavailable.add(into)            # 数量不能当成 0：没有检测模型就是没有测
+            return
+        classes = [str(c) for c in step.get("classes") or []] or None
+        found = detector.predict(ctx.img, float(step.get("conf", 0.4)), classes)
+        ctx.regions[into] = regions_from_boxes(ctx, found)[:int(step.get("max_count", 300))]
+        ctx.classified.add(into)
+        ctx.detected.add(into)
+        return
     path = str(step.get("model_file") or "")
     full = path if os.path.isabs(path) else os.path.join(ROOT, path)
-    into = step.get("into") or step.get("name") or "objects"
     if not os.path.isfile(full):
         ctx.notes.append("onnx_missing:%s" % path)
         ctx.regions[into] = []
@@ -600,19 +643,9 @@ def step_detect(ctx, step):
         x, y, w, h = item["bbox"]
         item["bbox"] = [int(round((x - pad_x) / ratio_x)), int(round((y - pad_y) / ratio_y)),
                         int(round(w / ratio_x)), int(round(h / ratio_y))]
-    regions = []
-    for item in found:
-        x, y, w, h = item["bbox"]
-        x, y = max(0, x), max(0, y)
-        w, h = max(1, min(ctx.w - x, w)), max(1, min(ctx.h - y, h))
-        regions.append({"id": len(regions) + 1, "bbox": [x, y, w, h], "center": [x + w / 2.0, y + h / 2.0],
-                        "area_px": float(w * h), "area": round(ctx.scale_area(w * h), 3),
-                        "length": round(ctx.scale_len(max(w, h)), 3), "width": round(ctx.scale_len(min(w, h)), 3),
-                        "diameter": round(ctx.scale_len(math.sqrt(w * h)), 3),
-                        "elongation": round(max(w, h) / float(max(1, min(w, h))), 3),
-                        "label": item["label"], "prob": item["prob"]})
-    ctx.regions[into] = regions
+    ctx.regions[into] = regions_from_boxes(ctx, found)
     ctx.classified.add(into)
+    ctx.detected.add(into)
 
 
 STEPS = {"mask": step_mask, "regions": step_regions, "classify": step_classify, "detect": step_detect}
@@ -777,6 +810,8 @@ def annotate(ctx):
                 cv2.rectangle(canvas, (x, y), (x + w, y + h), c, thick)
                 if item.get("number", True):
                     text = str(region["id"])
+                    if item.get("show_label", True) and region.get("label") and item["regions"] in ctx.detected:
+                        text += " " + str(region["label"]) + ("" if region.get("prob") is None else " %.2f" % region["prob"])
                     (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thick)
                     ty = y - 3 if y - th - 4 > 0 else y + h + th + 3
                     cv2.rectangle(canvas, (x, ty - th - 2), (x + tw + 4, ty + 2), c, cv2.FILLED)
@@ -788,12 +823,14 @@ def annotate(ctx):
 
 # ----------------------------------------------------------------- 入口
 
-def analyze(recipe, image, models=None, inputs=None, want_image=True):
-    """按方案处理一张图。返回测量值、区域列表、标注图和处理说明。"""
+def analyze(recipe, image, models=None, inputs=None, want_image=True, detectors=None):
+    """按方案处理一张图。返回测量值、区域列表、标注图和处理说明。
+
+    models(name) 给出「区域分类」模型，detectors(name) 给出「目标检测」模型；都可以不传。"""
     started = time.time()
     img = decode_image(image)
     img, factor = resize_max(img, int(recipe.get("max_side", 1280)))
-    ctx = Context(img, recipe, models, inputs)
+    ctx = Context(img, recipe, models, inputs, detectors)
     if ctx.mm_per_px and factor != 1.0:          # 图被缩小了：每个像素代表的毫米数相应变大
         ctx.mm_per_px = ctx.mm_per_px / factor
     for index, step in enumerate(recipe.get("pipeline") or []):

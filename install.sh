@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# laya-opencv installer for Linux / laya-opencv安装脚本（Linux）
+# laya-opencv installer for Linux / laya-opencv 安装脚本（Linux）
 # Usage / 用法: bash install.sh
 set -u
 cd "$(dirname "$0")"

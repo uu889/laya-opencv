@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
-"""laya-opencv启动器（Windows / Linux 通用，只用标准库）。
+"""laya-opencv 启动器（Windows / Linux 通用，只用标准库）。
 
-  1. 按 config.json 启动本地 Laya 服务 (python -m laya.serve)；已经在跑就直接用
+  1. 按 config.json 启动本地决策模型服务 (app/decision_server.py，没有它时退回 python -m laya.serve)；已经在跑就直接用
   2. 启动视觉服务 (app/vision_server.py，需要 OpenCV)；没装视觉组件时跳过，其余功能照常
   3. 在 ui_port 上提供工作台页面
   4. 检测接口：图像 → OpenCV 测量 → 数值层（硬规则）→ 判定模型 → 交叉核对
+  4b. 决策模型训练接口 /v1/decision/*（数据集、模型、训练任务；见 docs/CONTRACT.md §5，实现在 decision_jobs.py）
+       训练期间本地模型服务会被暂停（释放显存），训练结束自动恢复
+       环境变量 LAYA_WB_DECISION_CLI 可以指定训练脚本的位置（默认 app/decision_train.py）
+       环境变量 LAYA_WB_CONFIG 可以指定 config.json 的位置（默认项目根目录）
        POST /v1/inspect            {recipe, image | values, context, inputs, model, min_confidence, use_model, questions, state_level}
                                    recipe 是方案 id 或完整的方案对象；只给 values（测量值）时不需要图，也不需要视觉服务
        POST /v1/inspect/selftest   {recipe, model, limit}   数字判断力自检；GET ?recipe= 取上一次的报告
@@ -37,6 +41,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import decision_jobs  # noqa: E402
 import numeric  # noqa: E402
 import wb_lang  # noqa: E402
 
@@ -45,8 +50,9 @@ APP = ROOT / "app"
 EXAMPLES = ROOT / "examples"
 RECIPES = ROOT / "recipes"
 DATA = Path(os.environ.get("LAYA_WB_DATA") or (ROOT / "data"))
-CONFIG_FILE = ROOT / "config.json"
-VERSION = "2.0"
+CONFIG_FILE = Path(os.environ.get("LAYA_WB_CONFIG") or (ROOT / "config.json"))
+PROJECT = "laya-opencv"
+VERSION = "3.0"
 
 DEFAULTS = {
     "language": "auto",
@@ -61,6 +67,13 @@ DEFAULTS = {
     "preload": True,
     "api_key": "",
     "auto_update": True,
+    # 决策模型训练（docs/CONTRACT.md §6）
+    "laya_version": "",                 # 锁定的 laya 版本；非空时自动更新只检查、不升级
+    "install_training": True,
+    "decision_active": "",              # 当前默认的自定义决策模型名；空 = 用官方模型
+    "decision_pin_default": True,       # 有自定义默认模型时，未指定 model 的请求都用它
+    "decision_builtin": "multilingual", # 决策服务要注册的官方模型，逗号分隔；空 = 不注册官方模型
+    "detect_device": "auto",
     "start_vision": True,
     "vision_host": "127.0.0.1",
     "vision_port": 8001,
@@ -110,6 +123,19 @@ MSG = {
     "local_disabled": ("这台机器没有启用本地 Laya（没有安装，或 config.json 里 start_local_laya 为 false）。",
                        "Local Laya is not enabled on this machine (not installed, or start_local_laya is false in config.json)."),
     "local_unreach": ("连不上本地 Laya 服务 (%s)：%s", "Cannot reach the local Laya service (%s): %s"),
+    "local_paused": ("模型服务已暂停：正在训练", "The model service is paused while a training job runs"),
+    # 决策模型训练
+    "dec_training": ("有训练任务正在运行（%s），训练结束后再切换默认模型。", "A training job is running (%s); switch the default model after it finishes."),
+    "dec_restarting": ("[..] 默认决策模型改为「%s」，正在重启模型服务…", '[..] Default decision model set to "%s"; restarting the model service…'),
+    "dec_pausing": ("[..] 训练任务开始，暂停本地模型服务以释放显存。", "[..] A training job is starting; pausing the local model service to free GPU memory."),
+    "dec_resuming": ("[..] 训练任务结束，重新启动本地模型服务。", "[..] The training job finished; restarting the local model service."),
+    "dec_models": ("[i] 自定义决策模型 %d 个：%s", "[i] %d custom decision model(s): %s"),
+    "dec_pinned": ("[i] config.json 里 laya_version 锁定为 %s：训练脚本依赖 laya 的内部接口，自动更新只检查、不升级。",
+                   "[i] laya_version is pinned to %s in config.json: the training scripts depend on laya's internal API, so updates are only checked, never installed."),
+    "dec_pin_mismatch": ("[!] 当前安装的 laya 是 %s，config.json 锁定的是 %s。版本不一致时训练脚本可能报错；重新运行安装脚本可以装回锁定的版本。",
+                         "[!] laya %s is installed but config.json pins %s. The training scripts may fail on a different version; run the installer again to restore the pinned one."),
+    "dec_fallback": ("[i] 没有找到 app/decision_server.py，改用 python -m laya.serve 启动本地模型（自定义决策模型将不可用）。",
+                     "[i] app/decision_server.py not found; starting the local model with python -m laya.serve (custom decision models unavailable)."),
     "remote_unreach": ("连不上 %s (%s)：%s", "Cannot reach %s (%s): %s"),
     "states_bad": ("'states' 必须是非空数组", "'states' must be a non-empty list"),
     "states_max": ("一次最多 64 条", "At most 64 items per request"),
@@ -176,7 +202,7 @@ MSG = {
                 "[i] The model files have been updated (%s -> %s); the new version is downloaded when the model loads."),
     "mdl_same": ("[ok] 模型文件已是最新（%s）。", "[ok] The model files are up to date (%s)."),
     # 启动窗口
-    "title": ("  laya-opencv %s", "  laya-opencv %s"),
+    "title": ("  %s %s", "  %s %s"),
     "no_laya": ("[i] 当前环境没有安装 laya，本地模型不可用，只能使用远程接口。\n"
                 "    需要本地模型的话，运行安装脚本（install.bat / install.sh）。",
                 "[i] laya is not installed in this environment; the local model is unavailable and only remote interfaces work.\n"
@@ -257,8 +283,13 @@ if CFG.get("proxy"):
 else:
     REMOTE_OPENER = urllib.request.build_opener()
 
-SERVICE = {"mode": "starting", "exit_code": None}   # starting / running / external / exited / disabled
+SERVICE = {"mode": "starting", "exit_code": None}   # starting / running / external / exited / disabled / paused
 CHILD = None
+CHILD_LOCK = threading.Lock()
+PAUSE = {"by_job": False}        # 当前的「暂停」是不是训练任务触发的（训练结束要恢复）
+
+# 决策模型训练：数据集 / 模型 / 任务都交给 decision_jobs 管理
+DJ = decision_jobs.Store(DATA, lang=lambda: cur_lang(), hf_endpoint=lambda: hf_endpoint())
 
 
 class WBError(Exception):
@@ -301,9 +332,19 @@ def provider_label(pid):
     return p["name_en"] if lang == "en" else p["name"]
 
 
+def custom_models():
+    """本项目训练出来的决策模型名（data/decision/models/ 下的目录）。"""
+    try:
+        return DJ.model_names()
+    except Exception:
+        return []
+
+
 def is_laya_model(model):
     name = str(model or "").strip().lower()
-    return (not name) or name in LAYA_NAMES or name.startswith("convaiinnovations/")
+    if (not name) or name in LAYA_NAMES or name.startswith("convaiinnovations/"):
+        return True
+    return name in {m.lower() for m in custom_models()}
 
 
 def resolve(target, model):
@@ -348,6 +389,8 @@ def call_local(path, data=None, method="GET", content_type=None, timeout=600):
             detail = T("local_exited", SERVICE["exit_code"])
         elif mode == "disabled":
             detail = T("local_disabled")
+        elif mode == "paused":
+            detail = T("local_paused")
         else:
             detail = T("local_unreach", UPSTREAM, error)
         body = json.dumps({"detail": detail, "service": mode}, ensure_ascii=False)
@@ -357,7 +400,7 @@ def call_local(path, data=None, method="GET", content_type=None, timeout=600):
 def call_remote(pid, path, payload=None, method="GET"):
     """调用远程接口。网络层面失败时状态码返回 0。"""
     p = provider_public(pid)
-    headers = {"Accept": "application/json", "User-Agent": "laya-opencv/%s" % VERSION}
+    headers = {"Accept": "application/json", "User-Agent": "%s/%s" % (PROJECT, VERSION)}
     if provider_key(pid):
         headers["Authorization"] = "Bearer %s" % provider_key(pid)
     data = None
@@ -446,8 +489,11 @@ def list_models(target):
     target = (target or "local").strip().lower()
     pids = []
     if target in ("local", "auto"):
-        for name in ("multilingual", "english", "typed-decisions"):
+        # 只列决策服务真正注册了的官方模型（config 的 decision_builtin），再加自定义模型
+        for name in served_builtins():
             models[name] = "local"
+        for name in custom_models():
+            models.setdefault(name, "local")
     if target == "auto":
         pids = [pid for pid in CFG.get("auto_order") or [] if pid in CFG["providers"] and provider_usable(pid)]
     elif target in CFG["providers"]:
@@ -565,7 +611,12 @@ def apply_settings(body):
 MODEL_REPO = "convaiinnovations/laya"
 STATE_FILE = ROOT / ".update-state.json"
 UPDATE = {"mode": "off", "status": "", "installed": None, "latest": None, "previous": None,
-          "model_before": None, "model_latest": None}
+          "model_before": None, "model_latest": None, "pinned": ""}
+
+
+def laya_pin():
+    """config.json 里锁定的 laya 版本（训练脚本依赖 laya 的内部接口）；空字符串 = 不锁定。"""
+    return str(CFG.get("laya_version") or "").strip()
 
 
 def update_mode():
@@ -573,9 +624,14 @@ def update_mode():
     if isinstance(value, str):
         value = value.strip().lower()
         if value in ("check", "notify"):
-            return "check"
-        return "off" if value in ("off", "false", "0", "no", "") else "auto"
-    return "auto" if value else "off"
+            mode = "check"
+        else:
+            mode = "off" if value in ("off", "false", "0", "no", "") else "auto"
+    else:
+        mode = "auto" if value else "off"
+    if mode == "auto" and laya_pin():      # 锁定了版本：只报告有没有新版本，绝不自动升级
+        return "check"
+    return mode
 
 
 def pip_index():
@@ -611,7 +667,7 @@ def installed_version(name="laya"):
 
 
 def fetch_json(url, timeout=5):
-    req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "laya-opencv/%s" % VERSION})
+    req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "%s/%s" % (PROJECT, VERSION)})
     opener = LOCAL_OPENER if re.match(r"^https?://(127\.0\.0\.1|localhost)[:/]", url) else REMOTE_OPENER
     with opener.open(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode("utf-8"))
@@ -713,6 +769,11 @@ def check_update(can_upgrade=True):
     """启动时调用。can_upgrade=False 表示只检查（比如 Laya 服务已经在别处运行）。"""
     UPDATE["mode"] = update_mode()
     UPDATE["installed"] = installed_version()
+    UPDATE["pinned"] = laya_pin()
+    if UPDATE["pinned"] and UPDATE["installed"]:
+        print(T("dec_pinned", UPDATE["pinned"]))
+        if UPDATE["installed"] != UPDATE["pinned"]:
+            print(T("dec_pin_mismatch", UPDATE["installed"], UPDATE["pinned"]))
     if UPDATE["mode"] == "off" or not UPDATE["installed"]:
         return
     print(T("upd_checking"))
@@ -854,6 +915,7 @@ def start_vision():
     env["PYTHONUNBUFFERED"] = "1"
     env["LAYA_WB_BACKBONE_URLS"] = ",".join(backbone_urls())
     env["LAYA_WB_DATA"] = str(DATA)
+    env.setdefault("LAYA_WB_DETECT_DEVICE", str(CFG.get("detect_device") or "auto"))   # 目标检测训练/推理用的设备
     if CFG.get("proxy"):
         env["LAYA_WB_PROXY"] = str(CFG["proxy"])
     VISION_CHILD = subprocess.Popen([sys.executable, str(APP / "vision_server.py"), "--host", str(CFG["vision_host"]),
@@ -1192,7 +1254,30 @@ def status_payload():
                    "health": vision_health(1.0) if VISION["mode"] in ("starting", "running", "external") else None},
         "providers": [provider_public(pid) for pid in sorted(CFG["providers"], key=lambda x: (BUILTIN.index(x) if x in BUILTIN else len(BUILTIN), len(x), x))],
         "auto_order": [pid for pid in CFG.get("auto_order") or [] if pid in CFG["providers"]],
+        "decision": decision_status(),
     }
+
+
+def decision_models():
+    """模型列表，补上「是否当前默认」和「服务里是否已加载」。"""
+    items = DJ.list_models()
+    active = str(CFG.get("decision_active") or "").strip()
+    health = upstream_health(1.0) if SERVICE["mode"] in ("running", "external") else None
+    loaded = set((health or {}).get("loaded") or [])
+    for item in items:
+        item["active"] = item["name"] == active
+        item["loaded"] = item["name"] in loaded
+    return items
+
+
+def decision_status():
+    """/_wb/status 里的 decision 块（docs/CONTRACT.md §5）。"""
+    running = DJ.running_job()
+    active = str(CFG.get("decision_active") or "").strip()
+    return {"active": active or None, "custom_models": custom_models(), "training": running["id"] if running else None,
+            "training_kind": running["kind"] if running else None, "paused": SERVICE["mode"] == "paused",
+            "available": DJ.cli_ready() and DJ.installed().get("torch", False), "builtin": CFG.get("decision_builtin"),
+            "pin_default": bool(CFG.get("decision_pin_default", True))}
 
 
 def read_examples(lang):
@@ -1287,6 +1372,16 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(404, {"detail": "app/vision.js not found"})
         if path == "/_wb/recipes":
             return self._json(200, read_recipes((query.get("lang") or [cur_lang()])[0]))
+        if path == "/_wb/decision.js":
+            try:
+                return self._send(200, (APP / "decision.js").read_bytes(), "application/javascript; charset=utf-8")
+            except OSError:
+                return self._json(404, {"detail": "app/decision.js not found"})
+        if path.startswith("/v1/decision/"):
+            try:
+                return self._decision_get(path, query)
+            except (WBError, decision_jobs.DJError) as error:
+                return self._json(error.status, {"detail": error.detail})
         if path.startswith("/v1/vision/"):
             status, body, got = call_vision(self.path)
             extra = {name: got[name] for name in ("X-Variant", "X-Seed", "X-Objects") if got.get(name)}
@@ -1322,6 +1417,8 @@ class Handler(BaseHTTPRequestHandler):
             if path.startswith("/v1/vision/"):
                 status, body, got = call_vision(self.path, raw=data, method="POST", content_type=self.headers.get("Content-Type"))
                 return self._send(status, body, got.get("Content-Type") or "application/json")
+            if path.startswith("/v1/decision/"):
+                return self._decision_post(path, self._json_body(data))
             if path in ("/v1/inspect", "/v1/inspect/selftest", "/v1/inspect/review", "/_wb/recipes/save", "/_wb/recipes/delete"):
                 body = self._json_body(data)
                 target = (self.headers.get("X-WB-Target") or body.get("target") or "auto").strip().lower()
@@ -1335,10 +1432,62 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json(200, {"id": save_recipe(body), "recipes": read_recipes(cur_lang())})
                 delete_recipe(body)
                 return self._json(200, {"recipes": read_recipes(cur_lang())})
-        except WBError as error:
+        except (WBError, decision_jobs.DJError) as error:
             return self._json(error.status, {"detail": error.detail})
         status, body, got = call_local(self.path, data, "POST", self.headers.get("Content-Type"))
         self._send(status, body, got.get("Content-Type") or "application/json")
+
+    def _decision_get(self, path, query):
+        """GET /v1/decision/*（docs/CONTRACT.md §5）。"""
+        q = lambda key, default="": (query.get(key) or [default])[0]
+        if path == "/v1/decision/env":
+            return self._json(200, DJ.env(refresh=q("refresh") in ("1", "true", "yes")))
+        if path == "/v1/decision/datasets":
+            return self._json(200, DJ.list_datasets())
+        if path == "/v1/decision/datasets/rows":
+            return self._json(200, DJ.rows(q("name"), q("offset", "0"), q("limit", "20")))
+        if path == "/v1/decision/datasets/export":
+            name = DJ.check_name(q("name"))
+            text = DJ.export_text(name)
+            return self._send(200, text.encode("utf-8"), "application/x-ndjson; charset=utf-8",
+                              {"Content-Disposition": 'attachment; filename="%s.jsonl"' % urllib.parse.quote(name)})
+        if path == "/v1/decision/jobs":
+            if q("id"):
+                return self._json(200, DJ.get_job(q("id")))
+            return self._json(200, DJ.list_jobs())
+        if path == "/v1/decision/models":
+            return self._json(200, decision_models())
+        if path == "/v1/decision/models/info":
+            return self._json(200, DJ.model_info(q("name")))
+        raise WBError(404, "unknown path %s" % path)
+
+    def _decision_post(self, path, body):
+        """POST /v1/decision/*。"""
+        if path == "/v1/decision/datasets/create":
+            return self._json(200, DJ.create_dataset(body.get("name"), body.get("title"), body.get("note")))
+        if path == "/v1/decision/datasets/append":
+            return self._json(200, DJ.append_rows(body.get("name"), body.get("rows")))
+        if path == "/v1/decision/datasets/import":
+            return self._json(200, DJ.import_text(body.get("name"), body.get("format"), body.get("text"), body.get("csv")))
+        if path == "/v1/decision/datasets/from_reviews":
+            text = export_finetune(body.get("recipe"), cur_lang())
+            records = [json.loads(line) for line in text.splitlines() if line.strip()]
+            return self._json(200, DJ.import_rows(body.get("name"), records))
+        if path == "/v1/decision/datasets/delete":
+            return self._json(200, DJ.delete(body.get("name"), body.get("index")))
+        if path == "/v1/decision/new":
+            return self._json(200, DJ.start_new(body))
+        if path == "/v1/decision/train":
+            return self._json(200, DJ.start_train(body))
+        if path == "/v1/decision/evaluate":
+            return self._json(200, DJ.start_evaluate(body))
+        if path == "/v1/decision/jobs/cancel":
+            return self._json(200, DJ.cancel(body.get("id")))
+        if path == "/v1/decision/models/delete":
+            return self._json(200, DJ.delete_model(body.get("name")))
+        if path == "/v1/decision/models/activate":
+            return self._json(200, activate_model(body.get("name")))
+        raise WBError(404, "unknown path %s" % path)
 
     def _json_body(self, data):
         if "application/json" not in (self.headers.get("Content-Type") or "").lower():
@@ -1384,8 +1533,40 @@ class Handler(BaseHTTPRequestHandler):
                    {"X-WB-Provider": used, "X-WB-Tried": ",".join(tried)})
 
 
+def served_builtins():
+    """决策服务注册的官方模型名列表（config 的 decision_builtin；老配置退回 models）。"""
+    builtin = CFG["decision_builtin"] if "decision_builtin" in RAW else CFG.get("models", "multilingual")
+    names = [x.strip() for x in str(builtin or "").split(",") if x.strip()]
+    if not names and not custom_models():
+        names = ["multilingual"]
+    return names
+
+
+def decision_server_args():
+    """app/decision_server.py 的命令行（docs/CONTRACT.md §3）。"""
+    builtin = ",".join(served_builtins())
+    customs = custom_models()
+    active = str(CFG.get("decision_active") or "").strip()
+    if active and active not in customs:
+        active = ""
+    default = active or (builtin.split(",")[0] if builtin else (customs[0] if customs else "multilingual"))
+    if not builtin and not customs:
+        builtin = "multilingual"
+    args = [sys.executable, str(APP / "decision_server.py"), "--host", str(CFG["laya_host"]), "--port", str(CFG["laya_port"]),
+            "--device", str(CFG.get("device") or "auto"), "--builtin", builtin, "--default", default]
+    for name in customs:
+        args += ["--custom", "%s=%s" % (name, DJ.models_dir / name)]
+    if active and CFG.get("decision_pin_default", True):
+        args.append("--pin-default")
+    if CFG.get("preload", True):
+        args += ["--preload", default]
+    if CFG.get("api_key"):
+        args += ["--api-key", str(CFG["api_key"])]
+    return args, default
+
+
 def start_laya():
-    """启动本地 Laya 服务子进程，日志直接打在当前窗口。"""
+    """启动本地决策模型服务子进程（app/decision_server.py；没有它就退回 python -m laya.serve），日志直接打在当前窗口。"""
     global CHILD
     if importlib.util.find_spec("laya") is None:
         print(T("no_laya"))
@@ -1405,19 +1586,145 @@ def start_laya():
     if hf_endpoint() and not env.get("HF_ENDPOINT"):
         env["HF_ENDPOINT"] = hf_endpoint()
     env["PYTHONUNBUFFERED"] = "1"
-    CHILD = subprocess.Popen([sys.executable, "-m", "laya.serve"], env=env, cwd=str(ROOT))
-    SERVICE["mode"] = "starting"
-    print(T("starting", UPSTREAM, CFG.get("models") or T("all_models")))
+    env["LAYA_WB_DATA"] = str(DATA)
+    if (APP / "decision_server.py").is_file():
+        cmd, shown = decision_server_args()
+        customs = custom_models()
+        if customs:
+            print(T("dec_models", len(customs), ", ".join(customs)))
+    else:
+        print(T("dec_fallback"))
+        cmd, shown = [sys.executable, "-m", "laya.serve"], CFG.get("models") or T("all_models")
+    with CHILD_LOCK:
+        SERVICE["mode"] = "starting"
+        SERVICE["exit_code"] = None
+        CHILD = subprocess.Popen(cmd, env=env, cwd=str(ROOT))
+    print(T("starting", UPSTREAM, shown))
 
 
-def watch_ready():
-    while SERVICE["mode"] == "starting":
-        health = upstream_health(1.5)
-        if health:
-            SERVICE["mode"] = "running"
-            print(T("ready", ", ".join(health.get("loaded") or []) or "-", health.get("device", "-")))
-            return
-        time.sleep(2)
+def service_ours():
+    return CHILD is not None and CHILD.poll() is None and SERVICE["mode"] in ("starting", "running")
+
+
+def stop_child(timeout=20):
+    """结束我们自己拉起的模型服务子进程；等它退出。"""
+    global CHILD
+    with CHILD_LOCK:
+        child = CHILD
+        CHILD = None
+    if child is None or child.poll() is not None:
+        return
+    try:
+        child.terminate()
+    except OSError:
+        return
+    try:
+        child.wait(timeout)
+    except subprocess.TimeoutExpired:
+        try:
+            child.kill()
+        except OSError:
+            pass
+
+
+def needs_pause():
+    """训练前要不要暂停模型服务：只有模型服务占着显卡时才需要。设备不明时按需要暂停处理。"""
+    if str(CFG.get("device") or "auto").lower() == "cpu":
+        return False
+    device = DJ.cached_device()
+    return device != "cpu"
+
+
+def pause_service(force=False):
+    """训练开始：结束本启动器拉起的模型服务，释放显存；SERVICE.mode 置为 paused。返回是否真的暂停了。"""
+    if not service_ours() or not (force or needs_pause()):
+        return False
+    print(T("dec_pausing"))
+    SERVICE["mode"] = "paused"
+    stop_child()
+    return True
+
+
+def resume_service():
+    """训练结束：重新拉起被暂停的模型服务。"""
+    if SERVICE["mode"] != "paused":
+        return False
+    print(T("dec_resuming"))
+    start_laya()
+    return True
+
+
+def restart_service():
+    """切换默认模型：重启本启动器拉起的模型服务（外部服务 / 未启用时什么都不做）。"""
+    if not service_ours() and SERVICE["mode"] not in ("exited", "paused"):
+        return False
+    if SERVICE["mode"] in ("starting", "running"):
+        SERVICE["mode"] = "paused"
+        stop_child()
+    start_laya()
+    return SERVICE["mode"] == "starting"
+
+
+def before_job(kind):
+    if kind in decision_jobs.JOB_KINDS:
+        PAUSE["by_job"] = pause_service()
+
+
+def after_job(kind):
+    if PAUSE["by_job"]:
+        PAUSE["by_job"] = False
+        resume_service()
+
+
+DJ.before_start = before_job
+DJ.after_finish = after_job
+
+
+def supervise():
+    """盯着当前的模型服务子进程：就绪了改 running，退出了改 exited。子进程换了（暂停 / 重启）就接着盯新的。"""
+    handled = None
+    rolled_back = False
+    while True:
+        child = CHILD
+        if child is None or child is handled:
+            time.sleep(1)
+            continue
+        code = child.poll()
+        if code is None:
+            if SERVICE["mode"] == "starting" and upstream_health(1.5):
+                SERVICE["mode"] = "running"
+                health = upstream_health(1.5) or {}
+                print(T("ready", ", ".join(health.get("loaded") or []) or "-", health.get("device", "-")))
+            time.sleep(2 if SERVICE["mode"] == "starting" else 3)
+            continue
+        handled = child
+        if SERVICE["mode"] == "paused" or child is not CHILD:
+            continue                                   # 是我们自己结束的（暂停 / 重启），不算退出
+        # 刚升级完就起不来：退回原来的版本再启动一次
+        if code != 0 and SERVICE["mode"] == "starting" and UPDATE["status"] == "upgraded" and not rolled_back and rollback():
+            rolled_back = True
+            start_laya()
+            continue
+        SERVICE["mode"] = "exited"
+        SERVICE["exit_code"] = code
+        print(T("exited", code, CFG["laya_port"]))
+
+
+def activate_model(name):
+    """把自定义模型设为默认（写 config.json 的 decision_active）并重启模型服务。"""
+    name = str(name or "").strip()
+    if name:
+        DJ.model_info(name)                            # 不存在就 404
+    running = DJ.running_job()
+    if running:
+        raise WBError(409, T("dec_training", running["id"]))
+    with CONFIG_LOCK:
+        RAW["decision_active"] = name
+        CFG["decision_active"] = name
+        write_config()
+    print(T("dec_restarting", name or (CFG.get("decision_builtin") or "multilingual")))
+    restarted = restart_service()
+    return {"active": name or None, "restarted": restarted, "service": SERVICE["mode"]}
 
 
 def make_server():
@@ -1440,7 +1747,7 @@ def can_open_browser():
 
 def main():
     print("=" * 56)
-    print(T("title", VERSION))
+    print(T("title", PROJECT, VERSION))
     print("=" * 56)
 
     if upstream_health():
@@ -1453,8 +1760,7 @@ def main():
     else:
         check_update()
         start_laya()
-        if SERVICE["mode"] == "starting":
-            threading.Thread(target=watch_ready, daemon=True).start()
+    threading.Thread(target=supervise, daemon=True).start()
 
     start_vision()
 
@@ -1473,20 +1779,17 @@ def main():
         threading.Timer(1.0, webbrowser.open, [url]).start()
 
     try:
-        if CHILD is not None:
-            code = CHILD.wait()
-            # 刚升级完就起不来：退回原来的版本再启动一次
-            if code != 0 and SERVICE["mode"] == "starting" and UPDATE["status"] == "upgraded" and rollback():
-                start_laya()
-                code = CHILD.wait()
-            SERVICE["mode"] = "exited"
-            SERVICE["exit_code"] = code
-            print(T("exited", code, CFG["laya_port"]))
         while True:
             time.sleep(3600)
     except KeyboardInterrupt:
         pass
     finally:
+        running = DJ.running_job()
+        if running:
+            try:
+                DJ.cancel(running["id"])
+            except Exception:
+                pass
         for child in (CHILD, VISION_CHILD):
             if child is not None and child.poll() is None:
                 child.terminate()

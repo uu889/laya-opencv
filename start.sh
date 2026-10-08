@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Start the laya-opencv on Linux / 启动 laya-opencv（Linux）
+# Start laya-opencv on Linux / 启动 laya-opencv（Linux）
 # Usage / 用法: bash start.sh
 cd "$(dirname "$0")"
 if [ ! -x ".venv/bin/python" ]; then

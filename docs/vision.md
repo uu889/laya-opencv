@@ -76,13 +76,23 @@
 
 模型还没训练时这一步会被跳过，依赖识别结果的测量值没有值，规则裁决不受影响。
 
-### detect：外部训练好的检测模型
+### detect：外部训练好的 ONNX 检测模型
 
 ```json
 {"op": "detect", "model_file": "data/onnx/pests.onnx", "classes": ["aphid", "whitefly"], "size": 640, "conf": 0.25, "iou": 0.45, "into": "insects"}
 ```
 
 支持 YOLO 系列导出的 ONNX（v5 和 v8 / v11 两种输出排布）。`classes` 是训练时的类别名，顺序要一致。模型文件不存在时，依赖它的测量值记为「没有测到」，绑定的规则会提示复核，而不是按 0 处理。
+
+### detect：本项目训练的检测模型（目标检测）
+
+```json
+{"op": "detect", "model": "weed-detector", "conf": 0.4, "classes": ["weed"], "as": "regions:weeds"}
+```
+
+`model` 是「视觉训练 → 目标检测」页训练出的模型名（`data/det/models/<name>/`）。`conf` 是置信度阈值；`classes` 可选，只保留这几类；`as` 写成 `regions:名字`（也接受 `into`），默认 `objects`。产出的区域和 `regions` 步骤的结构完全一样（`bbox`、`area`、`length`、`width`、`elongation`、`circularity`…），并带 `label` 和 `prob`，后面的 `count`、`class_count`、`top_label`、`sum` / `max` 等测量值照常引用。标注图上会写出类别和分数。
+
+模型还没训练、或没有安装 torch / torchvision 时，这一步产出零个区域，`notes` 里记 `model_missing:<name>`，依赖它的测量值记为「没有测到」（和 `classify` 一样），其余步骤和规则裁决不受影响。推理在视觉服务里按需加载 torch，第一次调用会慢几秒。
 
 ## measurements：测量值
 
@@ -190,3 +200,54 @@
 5. 写规则和题目，阈值来自你的标准；给贴近阈值时不可靠的测量值设 `guard`
 6. 需要区分类别时再训练识别模型
 7. 接上判定模型后跑一次「数字自检」
+
+## 目标检测
+
+「视觉训练」页分两个子页：**区域分类**（原有的 cv2.ml 小分类器）和**目标检测**（torchvision 的 SSDLite / Faster R-CNN，能在一张图里框出每个目标）。目标检测需要 `install_training`（torch + torchvision）；没装时数据集和标注照常可用，训练和推理按钮不可用，`GET /v1/vision/health` 的 `detect` 字段会说明原因。
+
+### 数据
+
+```
+data/det/datasets/<name>/images/*.jpg      图片
+data/det/datasets/<name>/labels/*.txt      YOLO 格式：每行 class_id cx cy w h（0~1 归一化）
+data/det/datasets/<name>/classes.json      ["crop", "weed"]
+data/det/models/<name>/model.pt + meta.json
+```
+
+这就是 YOLO 系列通用的标注格式，用 LabelImg、Roboflow 等工具标好的数据可以直接拷进来（别忘了 `classes.json`）。页面上的标注器：选一张图（或点缩略图打开已有的图）→ 在图上拖动画框 → 选类别 → 保存；点框选中后可以改类别或按 Delete 删除。「从方案预标注」用现有方案的分割 / 识别步骤给出候选框，再手动修正。「生成合成样本」用五个内置场景生成带框的演示数据。
+
+### 训练
+
+参数：网络（`ssdlite` 快、4G 显存够，默认；`fasterrcnn_mobile` 略准、略慢）、轮数、批大小、输入尺寸、留出验证比例、预训练权重（`auto`：尝试下载 torchvision 的 ImageNet 骨干权重，下载不到就从头训练并在日志里提示手动放置的路径；`yes`：下载不到就报错；`no`：从头训练）。训练在子进程 `app/detect_train.py` 里跑，进度（轮 / 步 / 损失 / 预计剩余时间）和日志显示在页面上，可以取消；显存不足会自动把批大小减半重试。训练完给出留出集上的 mAP@0.5 和每类 AP。
+
+手动放置预训练权重：把 `https://download.pytorch.org/models/mobilenet_v3_large-8738ca79.pth` 下载到 `%TORCH_HOME%\hub\checkpoints\`（默认 `~/.cache/torch/hub/checkpoints/`），再用 `auto` 或 `yes` 训练。
+
+命令行也可以直接用（stdout 每行一个 JSON 事件）：
+
+```
+python app/detect_train.py probe
+python app/detect_train.py train --dataset data/det/datasets/demo-weed --out data/det/models/weed-det --epochs 20 --batch 8 --imgsz 320 [--pretrained auto|yes|no] [--resume]
+python app/detect_train.py predict --model data/det/models/weed-det --image photo.jpg --conf 0.4
+```
+
+### 在方案里使用
+
+见上面 pipeline 的 `detect` 一节：`{"op": "detect", "model": "weed-det", "conf": 0.4, "as": "regions:weeds"}`。
+
+### 接口
+
+| 接口 | 作用 |
+|---|---|
+| `GET /v1/vision/det/datasets` | 数据集列表 `[{name, images, boxes, classes}]` |
+| `POST /v1/vision/det/datasets/create` | `{name, classes}` |
+| `POST /v1/vision/det/datasets/add` | `{name, image, boxes:[{label, bbox:[x,y,w,h]}], size}` 像素坐标，服务端转成 YOLO |
+| `POST /v1/vision/det/datasets/label` | `{name, file, boxes}` 改一张图的标注 |
+| `GET /v1/vision/det/datasets/items?name=&offset=&limit=` | 分页列出图片和框 |
+| `GET /v1/vision/det/datasets/image?name=&file=[&thumb=1]` | 原图 / 缩略图 |
+| `POST /v1/vision/det/datasets/delete` | `{name, file?}` |
+| `POST /v1/vision/det/datasets/demo` | `{scene, name, count}` 合成数据集（后台任务） |
+| `POST /v1/vision/det/datasets/prelabel` | `{name, file, recipe}` 用方案生成候选框 |
+| `POST /v1/vision/det/train` | `{dataset, name, arch, epochs, batch, imgsz, pretrained, holdout, resume}` → 后台任务，进度在 `GET /v1/vision/jobs?id=`（含 `epoch/epochs/step/steps/loss/eta_seconds/log_tail`） |
+| `POST /v1/vision/jobs/cancel` | `{id}` 取消任务 |
+| `GET /v1/vision/det/models`、`POST /v1/vision/det/models/delete` | 模型列表 / 删除 |
+| `POST /v1/vision/det/predict` | `{model, image, conf}` → `{boxes, image}`（带标注图） |

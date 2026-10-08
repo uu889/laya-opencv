@@ -1,5 +1,6 @@
-# 推送形如 v1.1.0 的标签时，自动打出 Windows 用的 zip 和 Linux 用的 tar.gz，
+# 推送形如 v3.0.0 的标签时，自动打出 Windows 用的 zip 和 Linux 用的 tar.gz，
 # 并挂到同名的 GitHub Release 上。
+# CI 只装 OpenCV + numpy：需要 torch / laya / peft 的测试放在 tests/gpu/，没有 torch 时自动跳过。
 name: release
 
 on:
@@ -17,13 +18,16 @@ jobs:
 
       - name: Check sources
         run: |
-          python3 -m py_compile app/*.py tests/*.py
+          python3 -m py_compile app/*.py tests/*.py tests/gpu/*.py
           node --check app/vision.js
+          node --check app/decision.js
           bash -n install.sh
           bash -n start.sh
           for f in config.example.json examples/*/*.json recipes/*/*.json; do python3 -m json.tool "$f" > /dev/null; done
           if [ -e config.json ]; then echo "config.json must not be committed"; exit 1; fi
           if [ -e data ]; then echo "data/ must not be committed"; exit 1; fi
+          file install.bat | grep -q CRLF
+          file start.bat | grep -q CRLF
 
       - name: Run tests
         run: |
@@ -35,9 +39,14 @@ jobs:
           name="laya-opencv"
           mkdir -p "dist/$name"
           git archive HEAD | tar -x -C "dist/$name"
-          rm -rf "dist/$name/.github" "dist/$name/.gitignore" "dist/$name/.gitattributes" "dist/$name/tests"
+          # 开发内部文件不进安装包：CI 配置、测试（含 tests/gpu）、模块约定和验证脚本
+          rm -rf "dist/$name/.github" "dist/$name/.gitignore" "dist/$name/.gitattributes" \
+                 "dist/$name/tests" "dist/$name/tests/gpu" "dist/$name/docs/verify" "dist/$name/docs/CONTRACT.md"
           chmod +x "dist/$name/install.sh" "dist/$name/start.sh"
           file "dist/$name/install.bat" | grep -q CRLF
+          if [ -e "dist/$name/docs/CONTRACT.md" ] || [ -e "dist/$name/docs/verify" ] || [ -e "dist/$name/tests" ]; then
+            echo "internal files must not be in the release archive"; exit 1
+          fi
           cd dist
           zip -qr "$name-$GITHUB_REF_NAME.zip" "$name"
           tar -czf "$name-$GITHUB_REF_NAME.tar.gz" "$name"
