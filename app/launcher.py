@@ -187,6 +187,10 @@ MSG = {
                    "    A torch version conflict means the new version needs a newer PyTorch: run the installer again."),
     "upd_mirror": ("[i] 版本服务器显示有 %s，但当前 pip 源还没有同步到，下次启动再试。",
                    "[i] Version %s is announced, but the configured pip index does not have it yet; will retry next start."),
+    "upd_pinned": ("[i] Laya 有新版本 %s（当前 %s）。config.json 里 laya_version 锁定为 %s，所以没有自动升级。\n"
+                   "    3.0 的训练脚本依赖 laya 的内部接口，新版本未经验证可能不兼容；确实要升级，把 laya_version 改成新版本号后重新运行安装脚本。",
+                   "[i] Laya %s is available (installed: %s). laya_version is pinned to %s in config.json, so it was not installed.\n"
+                   "    The 3.0 training scripts depend on laya's internal API and newer versions are untested; to upgrade anyway, set laya_version to the new version and run the installer again."),
     "upd_available": ("[i] Laya 有新版本 %s（当前 %s）。config.json 里 auto_update 设成了 \"check\"，所以没有自动升级。",
                       "[i] Laya %s is available (installed: %s). auto_update is \"check\" in config.json, so it was not installed."),
     "upd_offline": ("[i] 连不上版本服务器，跳过更新检查，继续使用 Laya %s。",
@@ -791,7 +795,10 @@ def check_update(can_upgrade=True):
         print(T("upd_skip_bad", latest, current))
     elif UPDATE["mode"] == "check":
         UPDATE["status"] = "available"
-        print(T("upd_available", latest, current))
+        if laya_pin() and str(CFG.get("auto_update", True)).strip().lower() not in ("check", "notify"):
+            print(T("upd_pinned", latest, current, laya_pin()))   # 用户开了 auto_update，是版本锁定拦住的
+        else:
+            print(T("upd_available", latest, current))
     elif not can_upgrade:
         UPDATE["status"] = "running"
         print(T("upd_running", latest))
