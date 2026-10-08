@@ -731,6 +731,8 @@ def pip_install_laya(spec):
     constraint = None
     torch_version = installed_version("torch")
     if torch_version:
+        # 去掉本地版本标签（2.14.1+cu130 → 2.14.1）：pip 的约束文件按公开版本号解析，带标签会解析失败
+        torch_version = torch_version.split("+", 1)[0]
         constraint = ROOT / ".update-constraints.txt"
         constraint.write_text("torch==%s\n" % torch_version, encoding="utf-8")
         cmd += ["-c", str(constraint)]

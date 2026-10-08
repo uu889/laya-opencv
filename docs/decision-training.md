@@ -42,7 +42,7 @@ stdout **每行一个 JSON 对象**，stderr 是自由文本（transformers / la
 ```
 result: {"device":"cuda|cpu|mps","gpu_name":"NVIDIA GeForce RTX 3050 Laptop GPU","vram_mb":4096,
          "torch":"2.14.1+cu130","cuda":"13.0","bf16":true,"torch_cuda_build":true,"gpu_usable":true,
-         "laya":"0.3.28","peft":true,"torchvision":"0.29.1","transformers":"...","python":"3.12.x","platform":"...",
+         "laya":"0.4.0","peft":true,"torchvision":"0.29.1","transformers":"...","python":"3.12.x","platform":"...",
          "tier":"small|base|large","recommend":{...§4...},"warnings":["..."]}
 ```
 
@@ -295,7 +295,7 @@ GET  /v1/decision/models/info         ?name=
 torchvision 必须和 torch 是同一个构建。安装脚本按已装 torch 的 `torch.version.cuda` 选构建（例如 `cu130`），用 uv 的 `--torch-backend` 或 pip 的 `--index-url https://download.pytorch.org/whl/cu130`，并用 `torch==<已装版本>` 固定住 torch。手动装时照这个做，不要直接 `pip install torchvision`（Linux 上 PyPI 的 torchvision 会把 torch 换成 PyPI 的 CUDA 版本）。
 
 **为什么锁定 laya 版本**
-`decision_train.py` 用到 `laya.common.build_model` 和 `laya.train` 里的 `TrainConfig / finetune / save_checkpoint / load_checkpoint / read_data / items_from_rows / dry_run`，`decision_server.py` 替换了 `laya.serve._resolve_model`。这些不是 Laya 的公开 API，新版本可能改名。所以 `config.json` 默认 `laya_version: "0.3.28"`：安装脚本装 `laya[serve]==0.3.28`，自动更新只提示不升级。要换版本：改 `laya_version`，重新运行安装脚本，然后跑 `probe` 和一次小数据训练确认兼容；清空 `laya_version` 则恢复自动升级，风险自负。
+`decision_train.py` 用到 `laya.common.build_model` 和 `laya.train` 里的 `TrainConfig / finetune / save_checkpoint / load_checkpoint / read_data / items_from_rows / dry_run`，`decision_server.py` 替换了 `laya.serve._resolve_model`。这些不是 Laya 的公开 API，新版本可能改名。所以 `config.json` 默认 `laya_version: "0.4.0"`：安装脚本装 `laya[serve]==0.4.0`，自动更新只提示不升级。要换版本：改 `laya_version`，重新运行安装脚本，然后跑 `probe` 和一次小数据训练确认兼容；清空 `laya_version` 则恢复自动升级，风险自负。
 
 **训练很慢**
 CPU 上 e5-small、max_len 256、几百条数据每轮几分钟属于正常。GPU 上确认 `probe` 的 `device` 是 `cuda`（不是就重新运行安装脚本装 GPU 版 torch），`amp` 开着，micro batch 尽量大。

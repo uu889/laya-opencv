@@ -84,7 +84,7 @@ ssh -L 8090:127.0.0.1:8090 用户名@服务器地址
 ```
 [1/9] 准备虚拟环境 (.venv)
 [2/9] 安装 PyTorch                       有 NVIDIA 显卡装 GPU 版（约 2~3 GB），否则装 CPU 版
-[3/9] 安装 Laya 和服务端组件             laya[serve]==<laya_version>，默认锁定 0.3.28
+[3/9] 安装 Laya 和服务端组件             laya[serve]==<laya_version>，默认锁定 0.4.0
 [4/9] 安装训练组件（torchvision、peft）  torchvision 用和 torch 同一个构建（CUDA / CPU）
 [5/9] 检查安装结果                       laya / torch / torchvision / peft 版本，GPU 是否可用
 [6/9] 探测显卡与训练档位                 显卡、显存、档位（small / base / large）和推荐参数 → data/decision/gpu.json
@@ -335,10 +335,10 @@ curl -s http://127.0.0.1:8090/v1/inspect \
 
 每次运行 `start.bat` / `start.sh`，启动本地模型之前会先检查两样东西：
 
-- **Laya 程序**：和 PyPI 上的最新版本比较。`config.json` 里 `laya_version` 非空（默认锁定 `0.3.28`）时只提示不升级，因为训练脚本用到 Laya 的内部接口（`laya.train`、`laya.common`），新版本可能不兼容；想升级就改 `laya_version` 后重新运行安装脚本，或者把它清空恢复原来的自动升级。
+- **Laya 程序**：和 PyPI 上的最新版本比较。`config.json` 里 `laya_version` 非空（默认锁定 `0.4.0`）时只提示不升级，因为训练脚本用到 Laya 的内部接口（`laya.train`、`laya.common`），新版本可能不兼容；想升级就改 `laya_version` 后重新运行安装脚本，或者把它清空恢复原来的自动升级。
 - **模型文件**：和 Hugging Face 上的最新提交比较。模型文件由 Laya 在加载时自己下载最新版本，这里只是提前告诉你有没有更新。
 
-检查结果会显示在启动窗口里，页面左上方状态行下面也有一行，例如「Laya 0.3.28（已是最新）　模型版本 e4e9ddf2」。
+检查结果会显示在启动窗口里，页面左上方状态行下面也有一行，例如「Laya 0.4.0（已是最新）　模型版本 e4e9ddf2」。
 
 几种情况的处理：
 
@@ -440,7 +440,7 @@ Windows PowerShell 里要写 `curl.exe`。带 `states` 的两个批量示例要�
 | `install_local_laya` | `false` = 安装时跳过 PyTorch、Laya 和训练组件 |
 | `start_local_laya` | `false` = 启动时不拉起本地模型 |
 | `laya_host` / `laya_port` | 本地决策模型服务地址，默认 `127.0.0.1:8000` |
-| `laya_version` | 锁定的 Laya 版本，默认 `"0.3.28"`。安装脚本装 `laya[serve]==<它>`；非空时自动更新只检查不升级。清空 = 装最新版、恢复自动升级（训练脚本可能不兼容） |
+| `laya_version` | 锁定的 Laya 版本，默认 `"0.4.0"`。安装脚本装 `laya[serve]==<它>`；非空时自动更新只检查不升级。清空 = 装最新版、恢复自动升级（训练脚本可能不兼容） |
 | `install_training` | `false` = 不装 torchvision 和 peft：没有目标检测训练和决策训练的 lora 模式 |
 | `decision_active` | 当前默认的自定义决策模型名，页面上「设为默认」会写它；空 = 用官方模型 |
 | `decision_pin_default` | `true`（默认）= 有自定义默认模型时，没指定 `model` 的请求都用它（关掉按语言路由） |

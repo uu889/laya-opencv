@@ -42,7 +42,7 @@ DATA = Path(os.environ.get("LAYA_WB_DATA") or (ROOT / "data"))
 PROJECT = "laya-opencv"
 # 训练脚本（decision_train.py）用到 laya.train / laya.common 的内部接口，所以默认锁定这个版本；
 # config.json 的 laya_version 可以改，留空则装最新版（自动更新也会随之恢复）
-LAYA_VERSION_DEFAULT = "0.3.28"
+LAYA_VERSION_DEFAULT = "0.4.0"
 
 DEFAULTS = {
     "language": "auto",

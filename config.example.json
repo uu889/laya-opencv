@@ -15,7 +15,7 @@
   "preload": true,
   "api_key": "",
   "auto_update": "check",
-  "laya_version": "0.3.28",
+  "laya_version": "0.4.0",
 
   "install_training": true,
   "decision_active": "",

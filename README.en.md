@@ -84,7 +84,7 @@ The installer can be run again at any time; finished steps are skipped. A full i
 ```
 [1/9] Prepare the virtual environment (.venv)
 [2/9] Install PyTorch                                   GPU build with an NVIDIA GPU (about 2-3 GB), CPU build otherwise
-[3/9] Install Laya and the server components            laya[serve]==<laya_version>, pinned to 0.3.28 by default
+[3/9] Install Laya and the server components            laya[serve]==<laya_version>, pinned to 0.4.0 by default
 [4/9] Install the training components (torchvision, peft)  torchvision from the same build as torch (CUDA / CPU)
 [5/9] Check the installation                            laya / torch / torchvision / peft versions, GPU availability
 [6/9] Probe the GPU and the training tier               GPU, VRAM, tier (small / base / large), suggested parameters → data/decision/gpu.json
@@ -335,10 +335,10 @@ The response contains the measurements, the material and questions sent to the m
 
 Every time you run `start.bat` / `start.sh`, two things are checked before the local model starts:
 
-- **The Laya program**: compared with the latest version on PyPI. While `laya_version` in `config.json` is set (pinned to `0.3.28` by default) a newer version is only reported, never installed, because the training scripts use Laya's internal API (`laya.train`, `laya.common`) and a newer version may not be compatible. To upgrade, change `laya_version` and run the installer again, or clear it to restore automatic upgrades.
+- **The Laya program**: compared with the latest version on PyPI. While `laya_version` in `config.json` is set (pinned to `0.4.0` by default) a newer version is only reported, never installed, because the training scripts use Laya's internal API (`laya.train`, `laya.common`) and a newer version may not be compatible. To upgrade, change `laya_version` and run the installer again, or clear it to restore automatic upgrades.
 - **The model files**: compared with the latest commit on Hugging Face. Laya downloads the newest files itself when it loads the model; the check only tells you in advance whether there is an update.
 
-The outcome is printed in the launcher window, and the page shows a line under the status at the top left, for example "Laya 0.3.28 (up to date), model revision e4e9ddf2".
+The outcome is printed in the launcher window, and the page shows a line under the status at the top left, for example "Laya 0.4.0 (up to date), model revision e4e9ddf2".
 
 How the special cases are handled:
 
@@ -440,7 +440,7 @@ In Windows PowerShell write `curl.exe`. The two batch examples, which contain `s
 | `install_local_laya` | `false` = skip PyTorch, Laya and the training components during installation |
 | `start_local_laya` | `false` = do not start the local model |
 | `laya_host` / `laya_port` | Address of the local decision-model service, `127.0.0.1:8000` by default |
-| `laya_version` | Pinned Laya version, `"0.3.28"` by default. The installer installs `laya[serve]==<it>`; while set, automatic updates only check. Empty = install the latest and restore automatic upgrades (the training scripts may stop working) |
+| `laya_version` | Pinned Laya version, `"0.4.0"` by default. The installer installs `laya[serve]==<it>`; while set, automatic updates only check. Empty = install the latest and restore automatic upgrades (the training scripts may stop working) |
 | `install_training` | `false` = do not install torchvision and peft: no object-detection training and no lora mode |
 | `decision_active` | Name of the custom decision model that is currently the default; "Set as default" on the page writes it. Empty = the official model |
 | `decision_pin_default` | `true` (default) = while a custom default exists, requests without `model` all go to it (language routing off) |

@@ -42,7 +42,7 @@ The language of `log` lines follows `LAYA_WB_LANG=zh|en` (Chinese by default); t
 ```
 result: {"device":"cuda|cpu|mps","gpu_name":"NVIDIA GeForce RTX 3050 Laptop GPU","vram_mb":4096,
          "torch":"2.14.1+cu130","cuda":"13.0","bf16":true,"torch_cuda_build":true,"gpu_usable":true,
-         "laya":"0.3.28","peft":true,"torchvision":"0.29.1","transformers":"...","python":"3.12.x","platform":"...",
+         "laya":"0.4.0","peft":true,"torchvision":"0.29.1","transformers":"...","python":"3.12.x","platform":"...",
          "tier":"small|base|large","recommend":{...§4...},"warnings":["..."]}
 ```
 
@@ -295,7 +295,7 @@ lora mode reports "lora mode needs peft". Run the installer again (with `install
 torchvision must come from the same build as torch. The installer picks the build from the installed torch's `torch.version.cuda` (for example `cu130`), uses uv's `--torch-backend` or pip's `--index-url https://download.pytorch.org/whl/cu130`, and pins `torch==<installed version>`. Do the same by hand; do not run a bare `pip install torchvision` (on Linux, PyPI's torchvision replaces torch with PyPI's CUDA build).
 
 **Why the laya version is pinned**
-`decision_train.py` uses `laya.common.build_model` and `TrainConfig / finetune / save_checkpoint / load_checkpoint / read_data / items_from_rows / dry_run` from `laya.train`; `decision_server.py` replaces `laya.serve._resolve_model`. None of these is a public Laya API and a newer version may rename them. Hence `laya_version: "0.3.28"` by default in `config.json`: the installer installs `laya[serve]==0.3.28` and automatic updates only report. To move to another version: change `laya_version`, run the installer again, then run `probe` and a small training run to confirm compatibility. Clearing `laya_version` restores automatic upgrades at your own risk.
+`decision_train.py` uses `laya.common.build_model` and `TrainConfig / finetune / save_checkpoint / load_checkpoint / read_data / items_from_rows / dry_run` from `laya.train`; `decision_server.py` replaces `laya.serve._resolve_model`. None of these is a public Laya API and a newer version may rename them. Hence `laya_version: "0.4.0"` by default in `config.json`: the installer installs `laya[serve]==0.4.0` and automatic updates only report. To move to another version: change `laya_version`, run the installer again, then run `probe` and a small training run to confirm compatibility. Clearing `laya_version` restores automatic upgrades at your own risk.
 
 **Training is slow**
 On a CPU, e5-small with max_len 256 and a few hundred rows takes a few minutes per epoch; that is normal. On a GPU, check that `probe` reports `device: cuda` (otherwise run the installer again to get the GPU build of torch), keep `amp` on and the micro batch as large as it fits.
