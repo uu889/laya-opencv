@@ -23,7 +23,7 @@ GOOD = {"ripe_ratio": 91.26, "blemish_ratio": 0.44, "diameter": 70.4, "fruit_cou
 
 def fake_decide(mode):
     """顶替 launcher.safe_decide：ok = 假模型照常回答，down = 连不上，wrong = 是非题全部答反。"""
-    def decide(target, body, batch=False):
+    def decide(target, body, batch=False, images=False):
         if mode == "down":
             return {"ok": False, "status": 503, "data": {"detail": "offline"}, "provider": None, "tried": [], "ms": 0, "error": "offline"}
 

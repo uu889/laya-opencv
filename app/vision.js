@@ -18,6 +18,12 @@ Object.assign(I18N.zh, {
   "v.tab.verdict": "结论", "v.tab.measure": "测量与区域", "v.tab.state": "素材与题目", "v.tab.raw": "原始响应", "v.tab.selftest": "数字自检",
   "v.empty": "选一张图片，点「检测」，结论会显示在这里", "v.fail": "检测失败",
   "v.pass": "可以自动放行：规则与模型一致，没有临界或低置信度的项", "v.review": "建议人工复核", "v.passRules": "已按规则裁决",
+  "v.passJev": "Jev 看图给出了结论（没有测量值和硬规则可以核对）",
+  "v.mode": "判定方式", "v.mode.opencv": "只用 OpenCV", "v.mode.opencv+jev": "OpenCV + Jev 看图", "v.mode.jev": "只用 Jev 看图",
+  "v.modeHint.opencv": "OpenCV 测量 → 数值层写成文字 → 判定模型（本地 Laya 或远程 Jev）",
+  "v.modeHint.opencv+jev": "实验功能：测量结果和原图一起交给 Jev，硬规则照常裁决，Jev 的答案用来交叉核对。需要支持看图的远程接口（TypeSafe），按 token 计费",
+  "v.modeHint.jev": "实验功能：不经过 OpenCV，图片直接交给 Jev 判定，没有测量值和硬规则。需要支持看图的远程接口（TypeSafe），按 token 计费",
+  "v.jevPrepFail": "图片无法转换成 Jev 能收的格式：{msg}", "v.timingJev": "Jev 看图 {b} ms，合计 {c} ms",
   "v.modelDown": "判定模型这次没有给出答案（{msg}）。下面是只按规则得到的结论；没有绑定规则的题目没有答案。",
   "v.missingModel": "这个方案可以用识别模型「{name}」给区域分类，但它还没有训练。不影响规则裁决；训练后素材里会多出识别结果。",
   "v.prepare": "用合成样本训练一个示例模型", "v.preparing": "正在生成样本并训练…", "v.prepared": "示例模型已训练完成，交叉验证准确率 {acc}。", "v.prepareFail": "训练失败：{msg}",
@@ -106,6 +112,12 @@ Object.assign(I18N.en, {
   "v.tab.verdict": "Verdict", "v.tab.measure": "Measurements", "v.tab.state": "Material and questions", "v.tab.raw": "Raw response", "v.tab.selftest": "Numeric self-test",
   "v.empty": "Choose an image and press Inspect; the verdict appears here", "v.fail": "Inspection failed",
   "v.pass": "Can pass automatically: rule and model agree, nothing borderline or low-confidence", "v.review": "Human review recommended", "v.passRules": "Decided by rules",
+  "v.passJev": "Verdicts from Jev looking at the image (no measurements or hard rules to cross-check)",
+  "v.mode": "Decide with", "v.mode.opencv": "OpenCV only", "v.mode.opencv+jev": "OpenCV + Jev sees the image", "v.mode.jev": "Jev sees the image only",
+  "v.modeHint.opencv": "OpenCV measures → the numeric layer writes the numbers as text → decision model (local Laya or remote Jev)",
+  "v.modeHint.opencv+jev": "Experimental: the measurements and the image go to Jev together; hard rules still decide and Jev's answers are the cross-check. Needs a remote interface that accepts images (TypeSafe); billed per token",
+  "v.modeHint.jev": "Experimental: no OpenCV; the image goes straight to Jev, with no measurements or hard rules. Needs a remote interface that accepts images (TypeSafe); billed per token",
+  "v.jevPrepFail": "The image could not be converted for Jev: {msg}", "v.timingJev": "Jev {b} ms, total {c} ms",
   "v.modelDown": "The decision model gave no answer this time ({msg}). Below is the rule-only result; questions without a bound rule have no answer.",
   "v.missingModel": "This recipe can classify regions with the recognition model \"{name}\", which has not been trained yet. Rule decisions are unaffected; once trained, recognition results are added to the material.",
   "v.prepare": "Train a sample model from synthetic images", "v.preparing": "Generating samples and training…", "v.prepared": "Sample model trained; cross-validated accuracy {acc}.", "v.prepareFail": "Training failed: {msg}",
@@ -183,7 +195,7 @@ Object.assign(I18N.en, {
 /* ---------- 状态 ---------- */
 const V = {
   recipes: [], loaded: false, recipeId: null, text: "", applied: null, msg: null,
-  image: null, camera: null, showAnnotated: true, context: "", rulesOnly: false,
+  image: null, camera: null, showAnnotated: true, context: "", rulesOnly: false, visionMode: "",
   running: false, last: null, error: "", tab: "verdict", preparing: false, prepareMsg: null,
   selftest: {}, selfRunning: false, selfError: "", picked: {}, addDataset: "", addLabel: "", reviewMsg: {}, reviewPick: {}
 };
@@ -192,7 +204,10 @@ const TR = {
   job: null, jobKind: "", result: null, msg: null, upload: "", scene: "fruit", confirm: "", test: {}, bbJob: null, bbMsg: null
 };
 const RECIPE_KEY = "laya-workbench-recipe";
+const MODE_KEY = "laya-workbench-vision-mode";
+const VISION_MODES = ["opencv", "opencv+jev", "jev"];
 try { V.recipeId = localStorage.getItem(RECIPE_KEY) || null; } catch (e) { /* 用第一个方案 */ }
+try { V.visionMode = localStorage.getItem(MODE_KEY) || ""; } catch (e) { /* 用方案里的 vision_mode */ }
 
 async function jget(path) {
   const resp = await api(path, { cache: "no-store" });
@@ -284,6 +299,37 @@ async function useDemo(scene, variant) {
     setImage(await blobToDataUrl(await resp.blob()));
   } catch (e) { toast(t("v.imgFail", { msg: e.message })); }
 }
+/* Jev 看图的尺寸要求（https://docs.typesafe.ai/images）：每边 280 ~ 1568 像素，只收 PNG / JPEG，服务端不会帮你缩放 */
+const JEV_MIN_SIDE = 280, JEV_MAX_SIDE = 1568;
+function prepareForJev(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onerror = () => reject(new Error("PNG / JPEG / WebP"));     // 浏览器解不开的格式（TIFF 等）
+    img.onload = () => {
+      const w = img.naturalWidth, h0 = img.naturalHeight;
+      let k = Math.min(1, JEV_MAX_SIDE / Math.max(w, h0));
+      if (Math.min(w, h0) * k < JEV_MIN_SIDE) k = Math.min(JEV_MIN_SIDE / Math.min(w, h0), JEV_MAX_SIDE / Math.max(w, h0));   // 太小的放大
+      const dw = Math.min(JEV_MAX_SIDE, Math.max(1, Math.round(w * k))), dh = Math.min(JEV_MAX_SIDE, Math.max(1, Math.round(h0 * k)));
+      const canvas = h("canvas", { width: Math.max(dw, JEV_MIN_SIDE), height: Math.max(dh, JEV_MIN_SIDE) });   // 特别细长的图补灰边
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#808080";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, Math.floor((canvas.width - dw) / 2), Math.floor((canvas.height - dh) / 2), dw, dh);
+      resolve(canvas.toDataURL("image/jpeg", 0.9));      // 浏览器画到 canvas 时已经按 EXIF 摆正，导出的 JPEG 不带 EXIF
+    };
+    img.src = url;
+  });
+}
+function visionMode() {
+  if (VISION_MODES.includes(V.visionMode)) return V.visionMode;
+  const r = recipe();
+  return r && VISION_MODES.includes(r.vision_mode) ? r.vision_mode : "opencv";
+}
+function setVisionMode(mode) {
+  V.visionMode = mode;
+  try { localStorage.setItem(MODE_KEY, mode); } catch (e) { /* 只在本页记住 */ }
+  renderVision();
+}
 function stopCamera() {
   if (V.camera) { V.camera.getTracks().forEach(track => track.stop()); V.camera = null; }
 }
@@ -342,7 +388,7 @@ function applyRecipeText() {
 
 /* ---------- 检测 ---------- */
 function runProblem() {
-  if (!visionReady()) return t("v.needVision");
+  if (visionMode() !== "jev" && !visionReady()) return t("v.needVision");
   if (!recipe()) return t("v.noRecipes");
   if (!V.image) return t("v.needImage");
   return "";
@@ -350,10 +396,16 @@ function runProblem() {
 async function runInspect() {
   if (V.running || runProblem()) return;
   V.running = true; V.error = ""; V.tab = V.tab === "selftest" ? "verdict" : V.tab; renderVision();
-  const body = { recipe: V.applied || V.recipeId, image: V.image, use_model: !V.rulesOnly };
+  const mode = visionMode();
+  const body = { recipe: V.applied || V.recipeId, image: V.image, use_model: mode !== "opencv" || !V.rulesOnly, vision_mode: mode };
   if (V.context.trim()) body.context = V.context.trim();
   if (S.model.trim()) body.model = S.model.trim();
   if (S.minConf.trim() && isFinite(Number(S.minConf))) body.min_confidence = Number(S.minConf);
+  if (mode !== "opencv") {
+    try { body.jev_image = await prepareForJev(V.image); }
+    catch (e) { V.running = false; V.last = null; V.error = t("v.jevPrepFail", { msg: e.message || String(e) }); return renderVision(); }
+    if (mode === "jev") delete body.image;            // 只用 Jev 时原图不用再发一份
+  }
   try {
     const res = await jpost("/v1/inspect", body, { "X-WB-Target": S.target });
     if (res.ok && res.data) { V.last = res.data; V.picked = {}; V.reviewMsg = {}; V.reviewPick = {}; }
@@ -620,8 +672,13 @@ function renderVision() {
   left.append(h("section", { class: "card runbar" },
     h("button", { class: "run", id: "v-run", type: "button", disabled: V.running || !!problem, onclick: runInspect },
       h("span", { "aria-hidden": "true" }, "▷"), h("span", {}, V.running ? t("v.running") : t("v.run"))),
-    h("label", { class: "check" }, h("input", { type: "checkbox", checked: V.rulesOnly || null, onchange: e => { V.rulesOnly = e.target.checked; } }), t("v.rulesOnly")),
+    visionMode() === "opencv" ? h("label", { class: "check" }, h("input", { type: "checkbox", checked: V.rulesOnly || null, onchange: e => { V.rulesOnly = e.target.checked; } }), t("v.rulesOnly")) : null,
     h("span", { class: "hint warn" }, V.running ? "" : problem)));
+  const modeSelect = h("select", { id: "v-mode", "aria-label": t("v.mode"), onchange: e => setVisionMode(e.target.value) });
+  VISION_MODES.forEach(m => modeSelect.append(h("option", { value: m }, t("v.mode." + m))));
+  modeSelect.value = visionMode();
+  left.insertBefore(h("section", { class: "card" }, h("div", { class: "rowline", style: "margin-bottom:0" }, h("strong", {}, t("v.mode")), modeSelect),
+    h("p", { class: "fine", style: "margin-bottom:0" }, t("v.modeHint." + visionMode()))), left.lastElementChild);   // 放在「检测」按钮上面
 
   /* 模型 */
   left.append(modelsCard());
@@ -731,7 +788,8 @@ function renderResult() {
 
   if (V.tab === "verdict") {
     const modelDown = run.use_model && run.model && !run.model.ok;
-    const banner = h("div", { class: "banner " + (run.review ? "review" : "ok") }, run.review ? t("v.review") : (run.use_model && !modelDown ? t("v.pass") : t("v.passRules")));
+    const banner = h("div", { class: "banner " + (run.review ? "review" : "ok") }, run.review ? t("v.review") :
+      (run.vision_mode === "jev" ? t("v.passJev") : run.use_model && !modelDown ? t("v.pass") : t("v.passRules")));
     if (run.reasons && run.reasons.length) { const ul = h("ul"); run.reasons.forEach(x => ul.append(h("li", {}, x))); banner.append(ul); }
     panel.append(banner);
     if (modelDown) panel.append(h("div", { class: "banner info" }, t("v.modelDown", { msg: run.model.error || "" })));
@@ -747,6 +805,7 @@ function renderResult() {
     const a = run.analysis;
     const parts = [];
     if (a) parts.push(run.model ? t("v.timing", { a: fmtNum(a.ms, 0), b: fmtNum(run.model.ms, 0), c: fmtNum(run.ms, 0) }) : t("v.timingRules", { a: fmtNum(a.ms, 0), c: fmtNum(run.ms, 0) }));
+    else if (run.model) parts.push(t("v.timingJev", { b: fmtNum(run.model.ms, 0), c: fmtNum(run.ms, 0) }));
     if (run.model && run.model.ok) parts.push(t("m.iface", { v: run.model.provider === "local" ? t("t.local") : (pname(providerById(run.model.provider)) || run.model.provider) }) + (run.model.model ? t("sep.gap") + t("m.model", { v: run.model.model }) : ""));
     if (parts.length) panel.append(h("div", { class: "conf" }, parts.join(t("sep.gap"))));
     return;

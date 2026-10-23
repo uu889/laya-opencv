@@ -32,6 +32,7 @@ Fields starting with an underscore (`_title` for the button, `_note` for the des
 | `calibration.mm_per_px` | Millimetres per pixel of the original image. With it, lengths are in mm and areas in mm²; without it, pixels |
 | `quality` | Image quality gate: `min_sharpness` (variance of the Laplacian) and `brightness` (lower and upper limit of mean brightness, 0 to 255). Failing it marks the verdict for review |
 | `model` | Default decision model; a model name typed at the top of the page takes precedence |
+| `vision_mode` | Default decision mode: `opencv` (default, OpenCV only), `opencv+jev` (measurements and the image go to Jev together) or `jev` (no OpenCV, Jev sees the image only). The last two need a remote interface that accepts images, see "Decision mode" in the README; the choice on the page takes precedence |
 | `demo` / `train` | Used by the built-in recipes: the sample-image scene and the parameters for "Train a sample model" |
 
 ## pipeline: processing the image step by step
