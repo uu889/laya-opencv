@@ -32,6 +32,7 @@
 | `calibration.mm_per_px` | 原图上每个像素代表多少毫米。写了它，长度按 mm、面积按 mm² 输出；不写就是像素 |
 | `quality` | 图像质量门槛：`min_sharpness`（拉普拉斯方差）和 `brightness`（平均亮度的上下限，0~255）。不合格时结论标成建议复核 |
 | `model` | 默认的判定模型名；页面顶部填了模型名时以页面为准 |
+| `vision_mode` | 默认的判定方式：`opencv`（默认，只用 OpenCV）、`opencv+jev`（测量值和图片一起交给 Jev）、`jev`（不用 OpenCV，只让 Jev 看图）。后两种需要支持看图的远程接口，见 README「判定方式」；页面上的选择优先 |
 | `demo` / `train` | 内置方案用：示例图的场景，以及「训练示例模型」用的参数 |
 
 ## pipeline：一步一步处理图像

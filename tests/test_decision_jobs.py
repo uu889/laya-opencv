@@ -311,13 +311,13 @@ class HttpTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn("window.WBD", js)
         status, st = self.call("/_wb/status")
-        self.assertEqual(st["version"], "3.0")
+        self.assertEqual(st["version"], "3.1")
         dec = st["decision"]
         for key in ("active", "custom_models", "training", "paused"):
             self.assertIn(key, dec)
         self.assertEqual(dec["training"], None)
         self.assertFalse(dec["paused"])
-        self.assertEqual(launcher.VERSION, "3.0")
+        self.assertEqual(launcher.VERSION, "3.1")
 
     def test_dataset_round_trip_over_http(self):
         status, out = self.call("/v1/decision/datasets/create", {"name": "http-ds", "title": "HTTP"})

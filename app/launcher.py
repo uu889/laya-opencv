@@ -9,8 +9,10 @@
        训练期间本地模型服务会被暂停（释放显存），训练结束自动恢复
        环境变量 LAYA_WB_DECISION_CLI 可以指定训练脚本的位置（默认 app/decision_train.py）
        环境变量 LAYA_WB_CONFIG 可以指定 config.json 的位置（默认项目根目录）
-       POST /v1/inspect            {recipe, image | values, context, inputs, model, min_confidence, use_model, questions, state_level}
+       POST /v1/inspect            {recipe, image | values, context, inputs, model, min_confidence, use_model, questions, state_level, vision_mode, jev_image}
                                    recipe 是方案 id 或完整的方案对象；只给 values（测量值）时不需要图，也不需要视觉服务
+                                   vision_mode: opencv（默认，只用 OpenCV 测量）、opencv+jev（测量值 + 原图一起给 Jev）、
+                                   jev（不用 OpenCV，只把图交给 Jev）。后两种需要支持看图的远程接口，见 jev_image.py
        POST /v1/inspect/selftest   {recipe, model, limit}   数字判断力自检；GET ?recipe= 取上一次的报告
        POST /v1/inspect/review     {recipe, state, questions, gold}   记一条人工复核
        GET  /v1/inspect/export     ?recipe=   导出 {state, questions, gold} 的 JSONL
@@ -42,6 +44,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import decision_jobs  # noqa: E402
+import jev_image  # noqa: E402
 import numeric  # noqa: E402
 import wb_lang  # noqa: E402
 
@@ -52,7 +55,7 @@ RECIPES = ROOT / "recipes"
 DATA = Path(os.environ.get("LAYA_WB_DATA") or (ROOT / "data"))
 CONFIG_FILE = Path(os.environ.get("LAYA_WB_CONFIG") or (ROOT / "config.json"))
 PROJECT = "laya-opencv"
-VERSION = "3.0"
+VERSION = "3.1"
 
 DEFAULTS = {
     "language": "auto",
@@ -86,7 +89,8 @@ DEFAULTS = {
     "auto_order": ["aiask", "typesafe"],
     "providers": {
         "typesafe": {"name": "TypeSafe 官方", "name_en": "TypeSafe (official)",
-                     "base_url": "https://api.typesafe.ai", "api_key": "", "default_model": "jev-latest"},
+                     "base_url": "https://api.typesafe.ai", "api_key": "", "default_model": "jev-latest",
+                     "supports_images": True},
         "aiask": {"name": "aiask.me 网络加速", "name_en": "aiask.me (accelerated)",
                   "base_url": "https://aiask.me", "api_key": "", "default_model": "jev-latest"},
     },
@@ -175,6 +179,13 @@ MSG = {
     "recipe_builtin": ("内置方案不能删除", "Built-in recipes cannot be deleted"),
     "need_image": ("请提供图片（image）或测量值（values）", "Provide an image (image) or measurements (values)"),
     "selftest_none": ("这个方案里没有绑定硬规则的题目，没有可以自检的内容。", "This recipe has no question bound to a hard rule, so there is nothing to self-test."),
+    "img_no_iface": ("「Jev 看图」需要支持看图的远程接口（TypeSafe 官方，或在 config.json 里给接口设置 \"supports_images\": true），"
+                     "本地 Laya 只读文本。请在页面顶部选择「自动」或支持看图的接口。",
+                     "Jev image modes need a remote interface that accepts images (TypeSafe official, or one with "
+                     "\"supports_images\": true in config.json); local Laya reads text only. Choose Auto or such an interface at the top of the page."),
+    "img_iface_no": ("接口「%s」没有声明支持图片（config.json 里的 supports_images）", 'Interface "%s" is not marked as accepting images (supports_images in config.json)'),
+    "img_bad": ("图片不能交给 Jev：%s", "The image cannot be sent to Jev: %s"),
+    "img_state": ("图片", "Image"),
     "selftest_fail": ("自检时调用判定模型失败: %s", "The decision model call failed during the self-test: %s"),
     # 自动更新
     "upd_checking": ("[..] 正在检查 Laya 更新…", "[..] Checking for Laya updates…"),
@@ -322,6 +333,7 @@ def provider_public(pid):
             "has_key": bool(key), "key_hint": key[-4:] if len(key) >= 8 else "",
             "key_env": env_name if (key_env and not key_cfg) else "",
             "custom": custom,
+            "images": bool(p.get("supports_images", pid == "typesafe")),   # 能不能收图（Jev 看图，实验功能）
             "key_optional": custom,          # 第三方接口可以不带密钥（例如内网的另一台 Laya）
             "default_model": str(p.get("default_model") or ("" if custom else "jev-latest"))}
 
@@ -371,6 +383,27 @@ def resolve(target, model):
     return ready
 
 
+def resolve_images(target):
+    """带图的请求能去的接口：只有声明了 supports_images 的远程接口。"""
+    target = (target or "local").strip().lower()
+    if target == "local":
+        raise WBError(400, T("img_no_iface"))
+    if target in CFG["providers"]:
+        if not provider_usable(target):
+            raise WBError(400, T("need_key", provider_label(target)))
+        if not provider_public(target)["images"]:
+            raise WBError(400, T("img_iface_no", provider_label(target)))
+        return [target]
+    if target != "auto":
+        raise WBError(400, T("unknown_target", target))
+    order = [pid for pid in CFG.get("auto_order") or [] if pid in CFG["providers"]]
+    order += [pid for pid in CFG["providers"] if pid not in order]
+    ready = [pid for pid in order if provider_usable(pid) and provider_public(pid)["images"]]
+    if not ready:
+        raise WBError(400, T("img_no_iface"))
+    return ready
+
+
 def auth_headers():
     return {"Authorization": "Bearer %s" % CFG["api_key"]} if CFG.get("api_key") else {}
 
@@ -401,10 +434,11 @@ def call_local(path, data=None, method="GET", content_type=None, timeout=600):
         return 503, body.encode("utf-8"), {}
 
 
-def call_remote(pid, path, payload=None, method="GET"):
+def call_remote(pid, path, payload=None, method="GET", extra_headers=None):
     """调用远程接口。网络层面失败时状态码返回 0。"""
     p = provider_public(pid)
     headers = {"Accept": "application/json", "User-Agent": "%s/%s" % (PROJECT, VERSION)}
+    headers.update(extra_headers or {})
     if provider_key(pid):
         headers["Authorization"] = "Bearer %s" % provider_key(pid)
     data = None
@@ -431,12 +465,12 @@ def remote_payload(pid, body):
     return out
 
 
-def remote_single(candidates, body):
+def remote_single(candidates, body, extra_headers=None):
     """按顺序尝试远程接口，返回 (状态码, 响应体, 实际使用的接口, 尝试记录)。"""
     tried = []
     status, raw, used = 0, b"", candidates[0]
     for i, pid in enumerate(candidates):
-        status, raw = call_remote(pid, "/v1/systemone", remote_payload(pid, body), "POST")
+        status, raw = call_remote(pid, "/v1/systemone", remote_payload(pid, body), "POST", extra_headers)
         tried.append("%s=%s" % (pid, status))
         used = pid
         if 200 <= status < 300:
@@ -598,6 +632,8 @@ def apply_settings(body):
             raw_p["name"] = cfg_p["name"] = name
             raw_p.pop("name_en", None)
             cfg_p.pop("name_en", None)
+        if isinstance(body.get("supports_images"), bool):
+            raw_p["supports_images"] = cfg_p["supports_images"] = body["supports_images"]
         if body.get("api_key") is not None and str(body.get("api_key")).strip():
             raw_p["api_key"] = cfg_p["api_key"] = str(body.get("api_key")).strip()
         write_config()
@@ -1032,30 +1068,42 @@ def error_detail(data, fallback=""):
     return fallback or T("req_failed")
 
 
-def laya_decide(target, body, batch=False):
-    """把一份 systemone 请求交给当前接口（本地 Laya 或远程），返回解析好的结果。"""
+def laya_decide(target, body, batch=False, images=False):
+    """把一份 systemone 请求交给当前接口（本地 Laya 或远程），返回解析好的结果。
+
+    images=True：请求里带了 assets（Jev 看图），只发给支持图片的远程接口，并加上开启图片的请求头。
+    """
     started = time.time()
     path = "/v1/systemone/batch" if batch else "/v1/systemone"
-    candidates = resolve(target, body.get("model"))
-    if candidates == ["local"]:
+    if images:
+        body = {k: v for k, v in body.items() if k != "model" or not is_laya_model(v)}
+        try:
+            jev_image.check_request(json.dumps(body).encode("utf-8"))
+        except jev_image.ImageError as error:
+            raise WBError(413, T("img_bad", error.text(cur_lang())))
+        status, raw, used, tried = remote_single(resolve_images(target), body, dict([jev_image.HEADER]))
+        shown = jev_image.redact(body)
+    elif resolve(target, body.get("model")) == ["local"]:
         raw_body = json.dumps(body, ensure_ascii=False).encode("utf-8")
         status, raw, _ = call_local(path, raw_body, "POST", "application/json")
-        used, tried = "local", []
+        used, tried, shown = "local", [], body
     else:
+        candidates = resolve(target, body.get("model"))
         body = {k: v for k, v in body.items() if k != "model" or not is_laya_model(v)}   # 远程接口不认本地模型名
         status, raw, used, tried = (remote_batch if batch else remote_single)(candidates, body)
+        shown = body
     try:
         data = json.loads(raw.decode("utf-8"))
     except ValueError:
         data = {"detail": raw.decode("utf-8", "replace")[:500]}
     ok = 200 <= status < 300 and isinstance(data, dict)
-    return {"ok": ok, "status": status, "data": data, "provider": used, "tried": tried, "request": body,
+    return {"ok": ok, "status": status, "data": data, "provider": used, "tried": tried, "request": shown,
             "ms": round((time.time() - started) * 1000, 1), "error": None if ok else error_detail(data)}
 
 
-def safe_decide(target, body, batch=False):
+def safe_decide(target, body, batch=False, images=False):
     try:
-        return laya_decide(target, body, batch)
+        return laya_decide(target, body, batch, images)
     except WBError as error:
         return {"ok": False, "status": error.status, "data": {"detail": error.detail}, "provider": None, "tried": [],
                 "ms": 0, "error": error.detail}
@@ -1071,9 +1119,23 @@ def inspect(body, target):
     problems = numeric.validate(recipe)
     if problems:
         raise WBError(422, T("recipe_bad", "; ".join(problems[:5])))
+    mode = str(body.get("vision_mode") or recipe.get("vision_mode") or "opencv").strip().lower()
+    if mode not in jev_image.MODES:
+        raise WBError(400, jev_image.MSG["bad_mode"][1 if lang == "en" else 0])
+    image_ref, image_asset = None, None
+    if mode != "opencv":                             # Jev 看图：先按 TypeSafe 的限制检查，不合格就别发
+        if not (body.get("jev_image") or body.get("image")):
+            raise WBError(400, jev_image.MSG["no_image"][1 if lang == "en" else 0])
+        try:                                         # jev_image：页面按 Jev 的尺寸要求另外准备的一份；image 原样给 OpenCV（标定按原图像素）
+            image_ref, image_asset, _ = jev_image.make_asset(body.get("jev_image") or body["image"])
+        except jev_image.ImageError as error:
+            raise WBError(413 if error.key in ("too_big", "req_big") else 400, T("img_bad", error.text(lang)))
 
     analysis, values = None, {}
-    if body.get("image"):
+    full_recipe = recipe
+    if mode == "jev":                                # 只用 Jev 看图：不经过 OpenCV，也就没有测量值和硬规则
+        recipe = dict(recipe, bindings={})
+    elif body.get("image"):
         payload = {"recipe": {k: recipe[k] for k in RECIPE_KEYS_FOR_VISION if k in recipe}, "image": body["image"],
                    "inputs": body.get("inputs") if isinstance(body.get("inputs"), dict) else {}}
         status, raw, _ = call_vision("/v1/vision/analyze", payload)
@@ -1086,31 +1148,37 @@ def inspect(body, target):
         values = dict(analysis.get("values") or {})
     elif not isinstance(body.get("values"), dict):
         raise WBError(400, T("need_image"))
-    if isinstance(body.get("values"), dict):         # 直接给测量值：不用图，或者覆盖图里量出来的某几项
+    if isinstance(body.get("values"), dict) and mode != "jev":   # 直接给测量值：不用图，或者覆盖图里量出来的某几项
         values.update(body["values"])
     values = numeric.normalize(recipe, values)       # 四舍五入到规格的小数位：显示的数就是拿来比较的数
 
-    quality = numeric.check_quality(recipe, values, lang)
+    quality = numeric.check_quality(recipe, values, lang) if mode != "jev" else None
     level = "raw" if body.get("state_level") == "raw" else "compared"
     context = body.get("context") if body.get("context") not in ("", None, {}) else None
     state = numeric.build_state(recipe, values, lang, level, context, (analysis or {}).get("details"), quality)
-    use_model = body.get("use_model", True) is not False
+    if mode == "jev":
+        state.pop(numeric.tx(lang, "measures"), None)
+    if image_ref:
+        state[T("img_state")] = image_ref              # 这个字符串在 Jev 那边会换成图片本身
+    use_model = mode != "opencv" or body.get("use_model", True) is not False
     if not use_model:                                # 只按规则裁决：没绑定规则的题目没有答案，不列出来
         bound = recipe.get("bindings") or {}
         recipe = dict(recipe, questions={q: s for q, s in (recipe.get("questions") or {}).items() if q in bound})
-    questions = numeric.bound_questions(recipe, lang)
+    questions = numeric.bound_questions(full_recipe if mode == "jev" else recipe, lang)   # 判定标准照样写进题干，Jev 看图时对照它
 
     min_conf = body.get("min_confidence")
     min_conf = float(min_conf) if numeric.is_number(min_conf) else None
     answers, model_info = None, None
     if use_model and questions:
         request = {"state": state, "questions": questions}
+        if image_ref:
+            request["assets"] = {image_ref: image_asset}
         model = str(body.get("model") or recipe.get("model") or "").strip()
         if model:
             request["model"] = model
-        got = safe_decide(target, request)
+        got = safe_decide(target, request, images=bool(image_ref))
         model_info = {"ok": got["ok"], "status": got["status"], "provider": got["provider"], "tried": got["tried"],
-                      "ms": got["ms"], "error": got["error"], "request": got.get("request") or request, "response": got["data"],
+                      "ms": got["ms"], "error": got["error"], "request": got.get("request") or jev_image.redact(request), "response": got["data"],
                       "model": got["data"].get("model") if got["ok"] else None}
         if got["ok"] and isinstance(got["data"].get("answers"), dict):
             answers = got["data"]["answers"]
@@ -1123,7 +1191,7 @@ def inspect(body, target):
                 for name, spec in (recipe.get("measurements") or {}).items()
                 if isinstance(spec, dict) and not spec.get("hidden") and not str(name).startswith("_")]
     return {"recipe": recipe.get("id"), "analysis": analysis, "values": values, "measures": measures, "quality": quality, "state": state,
-            "questions": questions, "model": model_info, "use_model": use_model,
+            "questions": questions, "model": model_info, "use_model": use_model, "vision_mode": mode,
             "verdicts": decision["verdicts"], "review": decision["review"], "reasons": decision["reasons"],
             "missing_models": sorted(set(n.split(":", 1)[1] for n in notes if n.startswith("model_missing:"))),
             "missing_files": sorted(set(n.split(":", 1)[1] for n in notes if n.startswith("onnx_missing:"))),

@@ -13,7 +13,7 @@ A local workbench and one-click installer for decision models, for Windows and L
 
 ![Workbench](docs/screenshot.en.png)
 
-Decision models read text only; they cannot see images. Visual inspection connects the two as a pipeline:
+Local Laya reads text only; it cannot see images. By default visual inspection connects the two as a pipeline (TypeSafe's Jev can now look at images directly, see "Decision mode" below):
 
 ```
 image → OpenCV segmentation, recognition, detection, measurement → numeric layer (hard rules, written out as text) → decision model → rule and model cross-checked → verdict
@@ -34,6 +34,7 @@ The Decision training tab: training environment, datasets and labeler, model lis
 - Decision-model service: this project's own server serves the official Laya weights and your trained models side by side, chosen by the `model` field of the request; the official weights can be left out entirely
 - Object-detection training: draw boxes (or pre-label from a recipe, or generate synthetic samples), train SSDLite / Faster R-CNN, try an image, reference it in a recipe with `{"op": "detect"}`
 - Visual inspection: upload an image, capture one from the camera or use a sample; a recipe measures areas, counts, lengths and shares, then each question gets a verdict
+- Jev sees the image (experimental): choose "OpenCV only", "OpenCV + Jev sees the image" or "Jev sees the image only"; the last two send the image itself to TypeSafe's Jev
 - Five built-in recipes: fruit picking, weed control, pest monitoring, steel pipe inspection, fabric inspection. Recipes are JSON files and can be edited on the page
 - Numeric layer: conclusions that depend on numbers are decided by hard rules, and the model's answer is used as a cross-check; disagreement, borderline values and low confidence are flagged for human review
 - Region-classifier training: upload samples per class on the page and train a recognition model that classifies regions (OpenCV's `cv2.ml`; seconds to tens of seconds on a CPU)
@@ -264,6 +265,23 @@ The page has four tabs at the top: **Text decisions** is the original workbench;
 
 It also works without a decision model (no local Laya and no remote key): tick **Decide by rules only**, or just inspect; questions bound to a rule still get a verdict.
 
+### Decision mode: OpenCV only / OpenCV + Jev sees the image / Jev sees the image only
+
+TypeSafe's Jev (1.13 and later) can look at images directly ([docs](https://docs.typesafe.ai/images); experimental for now). **Decide with**, above the **Inspect** button, has three choices:
+
+| Mode | What happens | Good for |
+|---|---|---|
+| OpenCV only (default) | OpenCV measures → the numeric layer writes the numbers as text → decision model (local Laya or remote Jev). Exactly as before | Exact numbers, offline use, data that must stay on the machine, high-rate inspection |
+| OpenCV + Jev sees the image | The measurements and the image go to Jev together. Questions bound to a rule are still decided by the hard rule and Jev's answer is the cross-check; unbound questions are answered by Jev with the image in view | Hard limits plus colour or shape judgements that are hard to write as thresholds |
+| Jev sees the image only | No OpenCV: the image goes straight to Jev, with no measurements or hard rules (the standard is still appended to each question for Jev to follow). The vision service is not needed | Subjective judgements (ripeness, defect type, …) at low volume with network access |
+
+Notes on the two Jev modes:
+
+- They need a remote interface that accepts images. TypeSafe (official) does by default; for any other interface add `"supports_images": true` to it in `config.json`. Local Laya cannot see images, so choosing Local Laya is an error; Auto only switches between interfaces that accept images
+- The request carries `TypeSafe-Danger-Zone-Images: true`; the image goes into the request's `assets`, referenced by a random UUID. Images are billed as ordinary input tokens
+- Jev never resizes for you: each side must be 280 to 1568 pixels, PNG or JPEG only. The page converts the image (scales it, upscales or pads small ones, converts to JPEG, applies EXIF orientation); OpenCV still measures the original, so calibration is unaffected. When calling the endpoint directly, `jev_image` can carry a separately prepared image; an image outside the limits is rejected on your machine and never sent
+- A recipe can set `"vision_mode": "opencv+jev"` (or `"jev"`) as its default mode; the choice on the page takes precedence
+
 ### Using trained models
 
 A **Models** card sits above the recipe editor, so no JSON editing is needed:
@@ -323,6 +341,8 @@ curl -s http://127.0.0.1:8090/v1/inspect \
 ```
 
 The response contains the measurements, the material and questions sent to the model, the final verdict for each question (`verdicts`) and whether review is recommended (`review`). Send `values` (a set of ready-made measurements) instead of `image` to use only the numeric layer and the decision model, which lets you feed in data from other sensors.
+
+Add `"vision_mode": "opencv+jev"` or `"jev"` to let Jev see the image (see "Decision mode" above); the optional `"jev_image"` is a copy prepared to Jev's size limits, and `image` is used when it is absent.
 
 ### Limits
 
@@ -537,6 +557,7 @@ app/decision_server.py     decision-model server: official weights + your models
 app/detect_train.py        object-detection training CLI: probe / train / predict (torch + torchvision, subprocess)
 app/detect_data.py         detection dataset storage (YOLO format) and model lookup
 app/numeric.py             numeric layer: measurement specs, hard rules, wording, verdicts, self-test cases
+app/jev_image.py           Jev image input: checks images against TypeSafe's limits and builds assets (standard library only)
 app/vision_server.py       vision service (local HTTP API)
 app/vision_core.py         segmentation, regions, measurements, annotation, the detect step
 app/vision_train.py        region classification: feature extraction, training, model management

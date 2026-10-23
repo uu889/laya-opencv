@@ -35,7 +35,8 @@
       "name_en": "TypeSafe (official)",
       "base_url": "https://api.typesafe.ai",
       "api_key": "",
-      "default_model": "jev-latest"
+      "default_model": "jev-latest",
+      "supports_images": true
     },
     "aiask": {
       "name": "aiask.me 网络加速",
